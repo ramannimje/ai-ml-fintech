@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.sqlite
+.env
+.env.*
+mlruns/
+.terraform/
+terraform.tfstate*
+*.tfvars
+.idea/
+.vscode/
+.venv/
+dist/
+build/

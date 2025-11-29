@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:///mlflow.db --default-artifact-root /mlruns
+    volumes:
+      - ./mlruns:/mlruns
+    ports:
+      - "5000:5000"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      - ENV=local
+      - AWS_REGION=eu-central-1
+      - S3_BUCKET=fraud-mlops-models
+      - S3_TRAIN_DATA_KEY=data/train/transactions.csv
+      - S3_MONITOR_DATA_PREFIX=data/monitoring/
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MLFLOW_EXPERIMENT_NAME=fraud-detection
+      - MLFLOW_MODEL_NAME=fraud_detection_model
+      - MODEL_ARTIFACT_S3_KEY=models/fraud_detection/latest/model.pkl
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mlflow
