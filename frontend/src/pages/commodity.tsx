@@ -23,18 +23,18 @@ export function CommodityPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">{commodity.toUpperCase()}</h1>
-      <div className="flex gap-2">{[1, 7, 30].map((h) => <button key={h} onClick={() => setHorizon(h)} className="rounded bg-slate-800 px-3 py-1">{h}D</button>)}</div>
+      <div className="flex gap-2">{[1, 7, 30].map((h) => <button key={h} onClick={() => setHorizon(h)} className="rounded border border-slate-300 bg-white px-3 py-1 dark:border-slate-700 dark:bg-slate-800">{h}D</button>)}</div>
       <CommodityChart data={chartData} />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
           <h2 className="font-medium">Prediction</h2>
           <p className="mt-2 text-xl">{prediction.data?.predicted_price?.toFixed(2) ?? '—'}</p>
-          <p className="text-sm text-slate-400">CI: {prediction.data?.confidence_interval?.join(' - ')}</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">CI: {prediction.data?.confidence_interval?.join(' - ')}</p>
         </div>
-        <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
           <h2 className="font-medium">Model Accuracy</h2>
           <p className="mt-2 text-xl">RMSE {metrics.data?.rmse?.toFixed(2) ?? '—'}</p>
-          <p className="text-sm text-slate-400">Model: {metrics.data?.model_name ?? '—'}</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Model: {metrics.data?.model_name ?? '—'}</p>
         </div>
       </div>
     </div>

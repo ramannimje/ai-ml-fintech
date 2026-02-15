@@ -2,7 +2,8 @@ import axios from 'axios';
 import { z } from 'zod';
 import type { Commodity, HistoricalResponse, MetricsResponse, PredictionResponse, TrainResponse } from '../types/api';
 
-const api = axios.create({ baseURL: '/api' });
+const baseURL = import.meta.env.VITE_API_BASE_URL || '/api';
+const api = axios.create({ baseURL });
 
 const commoditiesSchema = z.object({ commodities: z.array(z.string()) });
 

@@ -9,12 +9,12 @@ export function MetricsPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Model Metrics</h1>
-      <div className="overflow-hidden rounded-xl border border-slate-800">
+      <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
         <table className="w-full text-left text-sm">
-          <thead className="bg-slate-900 text-slate-300"><tr><th className="p-3">Model</th><th>RMSE</th><th>MAE(MAPE)</th><th>Last trained</th><th>Status</th></tr></thead>
+          <thead className="bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-300"><tr><th className="p-3">Model</th><th>RMSE</th><th>MAE(MAPE)</th><th>Last trained</th><th>Status</th></tr></thead>
           <tbody>
             {queries.map((q, i) => (
-              <tr key={commodities[i]} className="border-t border-slate-800">
+              <tr key={commodities[i]} className="border-t border-slate-200 dark:border-slate-800">
                 <td className="p-3">{q.data?.model_name ?? commodities[i]}</td>
                 <td>{q.data?.rmse?.toFixed(2) ?? '—'}</td>
                 <td>{q.data?.mape?.toFixed(3) ?? '—'}</td>

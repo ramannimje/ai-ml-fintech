@@ -7,10 +7,14 @@ interface UiState {
   setTheme: (theme: Theme) => void;
 }
 
-const defaultTheme = (localStorage.getItem('theme') as Theme | null) ?? 'dark';
+const getDefaultTheme = (): Theme => {
+  if (typeof window === 'undefined') return 'system';
+  const saved = localStorage.getItem('theme') as Theme | null;
+  return saved ?? 'system';
+};
 
 export const useUiStore = create<UiState>((set) => ({
-  theme: defaultTheme,
+  theme: getDefaultTheme(),
   setTheme: (theme) => {
     localStorage.setItem('theme', theme);
     set({ theme });
