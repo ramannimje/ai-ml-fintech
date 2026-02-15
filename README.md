@@ -80,11 +80,13 @@ Open: `http://localhost/`
 ### 3) Run in split dev mode
 
 Terminal A:
+
 ```bash
 make backend-dev
 ```
 
 Terminal B:
+
 ```bash
 make frontend-dev
 ```
