@@ -77,7 +77,48 @@ docker compose up --build
 
 Open: `http://localhost/`
 
-### 3) Run in split dev mode
+### 3) Run backend locally (without Docker)
+
+```bash
+cd backend
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+python -m uvicorn main:app --reload --port 8000
+```
+
+Backend API base URL: `http://127.0.0.1:8000/api`
+
+Quick checks:
+
+```bash
+curl -i http://127.0.0.1:8000/api/health
+curl -i http://127.0.0.1:8000/api/commodities
+```
+
+### 4) Run frontend locally (without Docker)
+
+Open a new terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open: `http://127.0.0.1:5173`
+
+Notes:
+
+- Vite dev server proxies `/api/*` to `http://127.0.0.1:8000`.
+- If running frontend from a different host/port setup, create `frontend/.env.local`:
+
+```bash
+VITE_API_BASE_URL=http://127.0.0.1:8000/api
+```
+
+### 5) Run split dev mode via Make (optional)
 
 Terminal A:
 
