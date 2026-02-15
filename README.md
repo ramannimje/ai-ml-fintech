@@ -1,107 +1,117 @@
-# ai-commodity-predictor
+# AI Commodity Predictor Monorepo
 
-Production-style commodity price forecasting service built with FastAPI, async SQLAlchemy, PostgreSQL, and multiple ML models (XGBoost, LSTM, Transformer, Prophet baseline).
+End-to-end commodity forecasting platform with a FastAPI backend and premium React frontend, served as one application through Nginx.
 
-## Features
-- Async FastAPI backend with structured JSON APIs
-- Supported commodities: Gold, Silver, Crude Oil
-- Automatic historical download via Yahoo Finance (`yfinance`)
-- Cached + incremental data refresh in `ml/cache/`
-- Feature engineering: MA, RSI, volatility, lagged values, returns, rolling min/max
-- Model training + comparison across multiple model families
-- Automatic best-model selection by validation RMSE
-- Model artifact persistence in `ml/artifacts/`
-- Metadata tracking in PostgreSQL (`training_runs`)
-
-## Repository structure
+## Monorepo Structure
 
 ```text
-app/
-    api/
-    core/
-    services/
-    models/
-    schemas/
-    db/
-ml/
-    data/
-    features/
-    training/
-    inference/
-    evaluation/
-tests/
-scripts/
-docker/
+ai-commodity-predictor/
+├── backend/
+│   ├── app/
+│   ├── ml/
+│   ├── tests/
+│   ├── docker/
+│   ├── requirements.txt
+│   └── main.py
+├── frontend/
+│   ├── public/
+│   ├── src/
+│   ├── package.json
+│   └── vite.config.ts
+├── infra/
+│   ├── nginx/
+│   └── docker-compose.yml
+├── .env.example
+├── Makefile
+└── README.md
 ```
 
-## Quickstart (local)
+## Architecture
 
-1. Copy env file:
+```text
+Browser
+  │
+  ▼
+Nginx (single entrypoint :80)
+  ├── /      -> Frontend (React + Vite)
+  └── /api/* -> Backend (FastAPI + ML services)
+                    ├── PostgreSQL metadata (training_runs)
+                    └── Model/data artifacts on filesystem
+```
+
+## Frontend Stack
+
+- React 18 + TypeScript + Vite
+- TailwindCSS + utility-first dark UI
+- TanStack Query (cache + fetch orchestration)
+- Zustand (theme persistence)
+- Recharts (market and prediction visuals)
+- React Router v6
+- Axios + Zod API client validation
+- Framer Motion animations
+- Vitest + ESLint + Typecheck
+
+## Backend API (proxied by Nginx)
+
+- `GET /api/health`
+- `GET /api/commodities`
+- `GET /api/historical/{commodity}`
+- `POST /api/train/{commodity}?horizon=1|7|30`
+- `GET /api/predict/{commodity}?horizon=1|7|30`
+- `GET /api/metrics/{commodity}`
+- `POST /api/retrain-all?horizon=1|7|30`
+
+## Local Setup
+
+### 1) Environment
+
 ```bash
 cp .env.example .env
 ```
 
-2. Start services:
-```bash
-docker-compose up --build
-```
-
-3. API docs:
-- http://localhost:8000/docs
-
-## Make commands
+### 2) Run full stack (recommended)
 
 ```bash
-make install
-make run
-make test
-make train
-make predict
+docker compose up --build
 ```
 
-## Core API endpoints
-- `GET /health`
-- `GET /commodities`
-- `GET /historical/{commodity}`
-- `POST /train/{commodity}?horizon=1|7|30`
-- `GET /predict/{commodity}?horizon=1|7|30`
-- `GET /metrics/{commodity}`
-- `POST /retrain-all?horizon=1|7|30`
+Open: `http://localhost/`
 
-## Example train + predict
+### 3) Run in split dev mode
 
-Train gold model:
+Terminal A:
+
 ```bash
-curl -X POST "http://localhost:8000/train/gold?horizon=7"
+make backend-dev
 ```
 
-Predict gold price:
+Terminal B:
+
 ```bash
-curl "http://localhost:8000/predict/gold?horizon=7"
+make frontend-dev
 ```
 
-Example response:
-```json
-{
-  "commodity": "gold",
-  "prediction_date": "2026-02-20",
-  "predicted_price": 74850.23,
-  "confidence_interval": [74210.11, 75420.55],
-  "model_used": "transformer_20260213010101",
-  "model_accuracy_rmse": 412.4,
-  "horizon_days": 7
-}
-```
+## Developer Commands
 
-## Scripts
-
-Train commodity:
 ```bash
-python scripts/train.py gold --horizon 1
+make dev      # full stack via Docker
+make build    # frontend build + docker build
+make test     # backend pytest + frontend vitest
+make lint     # frontend eslint + typecheck
 ```
 
-Predict commodity:
-```bash
-python scripts/predict.py gold --horizon 30
-```
+## How frontend talks to backend
 
+- All UI calls use `frontend/src/api/client.ts` with base URL `/api`.
+- Nginx routes `/api/*` to backend service.
+- React Query policies:
+  - Historical: stale 10 minutes
+  - Metrics: stale 5 minutes
+  - Predictions: no cache (stale 0)
+
+## Screenshots
+
+- Dashboard (placeholder): `docs/screenshots/dashboard.png`
+- Commodity detail (placeholder): `docs/screenshots/commodity.png`
+- Train models (placeholder): `docs/screenshots/train.png`
+- Metrics table (placeholder): `docs/screenshots/metrics.png`
