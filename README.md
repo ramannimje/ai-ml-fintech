@@ -1,209 +1,107 @@
+# ai-commodity-predictor
 
-# 🚀 Real-Time Fraud Detection MLOps System (FinTech)
+Production-style commodity price forecasting service built with FastAPI, async SQLAlchemy, PostgreSQL, and multiple ML models (XGBoost, LSTM, Transformer, Prophet baseline).
 
-**End-to-end production-grade MLOps project built for real-time fraud detection in financial transactions.**  
-This system simulates live banking transactions, scores them through an XGBoost model, detects data drift, retrains automatically, and deploys continuously using AWS, Docker, Terraform, and GitHub Actions.
+## Features
+- Async FastAPI backend with structured JSON APIs
+- Supported commodities: Gold, Silver, Crude Oil
+- Automatic historical download via Yahoo Finance (`yfinance`)
+- Cached + incremental data refresh in `ml/cache/`
+- Feature engineering: MA, RSI, volatility, lagged values, returns, rolling min/max
+- Model training + comparison across multiple model families
+- Automatic best-model selection by validation RMSE
+- Model artifact persistence in `ml/artifacts/`
+- Metadata tracking in PostgreSQL (`training_runs`)
 
-A complete showcase of **machine learning engineering + MLOps + cloud deployment**.
+## Repository structure
 
----
-
-## ⭐ Project Highlights (Why This Project Stands Out)
-
-- **FinTech domain** – Realistic fraud detection use case  
-- **Real-time inference API** (FastAPI + Docker + ECS Fargate)  
-- **MLflow-powered experiment tracking + model registry**  
-- **Automated training pipeline** (feature engineering, evaluation, registry)  
-- **Data drift monitoring** using Evidently AI  
-- **Automated CI/CD deployment** through GitHub Actions  
-- **Infrastructure-as-Code** using Terraform (ECR, ECS, ALB, IAM, VPC, S3)  
-- **Prometheus metrics + Grafana dashboard**  
-- **Production-style architecture** — not a toy ML project  
-- **Fully reproducible end-to-end pipeline**  
-
-This is a **portfolio-ready FinTech MLOps system** built to demonstrate senior engineering capability.
-
----
-
-# 📸 Screenshots (Showcase)
-
-### **Fraud Detection API Screenshot**
-
-![Fraud Detection API UI](A_screenshot_of_an_API_web_interface_displays_a_fr.png)
-
----
-
-# 🧠 Architecture Overview
-
-```
-                ┌────────────────────────┐
-                │ Synthetic Transaction   │
-                │     Generator (Python) │
-                └───────────────▲────────┘
-                                │
-                                ▼
-                        ┌─────────────┐
-                        │   S3 Bucket │◄─────────────┐
-                        └───────▲─────┘              │
-                                │                    │
-                                │                    │
-                     ┌──────────┴──────────┐   ┌─────┴───────────┐
-                     │ Model Training (CI) │   │ Drift Monitor    │
-                     │  XGBoost + MLflow   │   │  Evidently AI    │
-                     └──────────▲──────────┘   └────────▲─────────┘
-                                │                     │
-                                │                     │ triggers retrain
-                                ▼                     │
-                     ┌─────────────────────┐          │
-                     │   MLflow Registry   │──────────┘
-                     └──────────▲──────────┘
-                                │ deploy latest Production model
-                                ▼
-                         ┌─────────────┐
-                         │  AWS ECR    │
-                         └────▲────────┘
-                              │ Docker image
-                              ▼
-                        ┌───────────────┐
-                        │ AWS ECS Fargate│
-                        │  FastAPI API  │
-                        └───────▲───────┘
-                                │
-                                ▼
-                         ┌────────────┐
-                         │   Users     │
-                         └────────────┘
+```text
+app/
+    api/
+    core/
+    services/
+    models/
+    schemas/
+    db/
+ml/
+    data/
+    features/
+    training/
+    inference/
+    evaluation/
+tests/
+scripts/
+docker/
 ```
 
----
+## Quickstart (local)
 
-# 🧬 End-to-End Pipeline
-
-### **1️⃣ Data Simulation Layer**
-- Generates realistic banking transactions  
-- Uploads them to S3 (training + monitoring)  
-- Can stream live to API  
-
-### **2️⃣ Training Pipeline**
-- Feature engineering  
-- XGBoost training  
-- MLflow experiment tracking  
-- Model registry + Production stage transitions  
-- Model artifact stored in S3  
-
-### **3️⃣ Real-Time Inference**
-- FastAPI service  
-- Dockerized  
-- Deployed on AWS ECS Fargate  
-- Low latency predictions  
-
-### **4️⃣ Drift Monitoring**
-- Evidently AI reports  
-- Feature drift  
-- Data drift  
-- Prediction drift  
-- Auto‑retrain trigger via S3 drift flag  
-
-### **5️⃣ CI/CD**
-- GitHub Actions pipeline  
-- Build → Test → Dockerize → Push to ECR → Terraform Apply → Deploy  
-
----
-
-# 🛠️ Tech Stack
-
-### **MLOps**
-MLflow, Evidently AI, XGBoost
-
-### **Backend**
-FastAPI, Uvicorn, Docker
-
-### **Cloud**
-AWS ECS, ECR, S3, ALB, IAM, VPC
-
-### **Infrastructure**
-Terraform, GitHub Actions, Prometheus, Grafana
-
----
-
-# 🚀 Local Setup
-
-### **1. Install dependencies**
-```
-pip install -r requirements.txt
+1. Copy env file:
+```bash
+cp .env.example .env
 ```
 
-### **2. Start local API + MLflow**
-```
+2. Start services:
+```bash
 docker-compose up --build
 ```
 
-### **3. Generate training data**
-```
-python -m src.data_simulation.transaction_generator
-```
+3. API docs:
+- http://localhost:8000/docs
 
-### **4. Train the model**
-```
-python -m src.model_training.train
-```
+## Make commands
 
-### **5. Test prediction**
-```
-curl -X POST http://localhost:8000/predict   -H "Content-Type: application/json"   -d '{
-    "transaction_id": "t1",
-    "customer_id": "c1",
-    "amount": 1500,
-    "merchant_category": "electronics",
-    "transaction_type": "online",
-    "device_id": "dev123",
-    "geo_location": "IN-MH",
-    "timestamp": "2024-11-01T10:00:00Z"
-  }'
+```bash
+make install
+make run
+make test
+make train
+make predict
 ```
 
----
+## Core API endpoints
+- `GET /health`
+- `GET /commodities`
+- `GET /historical/{commodity}`
+- `POST /train/{commodity}?horizon=1|7|30`
+- `GET /predict/{commodity}?horizon=1|7|30`
+- `GET /metrics/{commodity}`
+- `POST /retrain-all?horizon=1|7|30`
 
-# 🌩️ Deploy to AWS
+## Example train + predict
 
-### **Prerequisites**
-- AWS account
-- IAM OIDC role for GitHub
-- Terraform installed
-- GitHub Secrets configured:
-  - `AWS_ACCOUNT_ID`
-  - `AWS_OIDC_ROLE_ARN`
-
-### **Deploy**
-Push to `main`:
-```
-git push
+Train gold model:
+```bash
+curl -X POST "http://localhost:8000/train/gold?horizon=7"
 ```
 
-GitHub Actions:
-- Builds Docker image  
-- Pushes to ECR  
-- Runs Terraform  
-- Deploys to ECS  
+Predict gold price:
+```bash
+curl "http://localhost:8000/predict/gold?horizon=7"
+```
 
----
+Example response:
+```json
+{
+  "commodity": "gold",
+  "prediction_date": "2026-02-20",
+  "predicted_price": 74850.23,
+  "confidence_interval": [74210.11, 75420.55],
+  "model_used": "transformer_20260213010101",
+  "model_accuracy_rmse": 412.4,
+  "horizon_days": 7
+}
+```
 
-# 📊 Monitoring Dashboards
+## Scripts
 
-- Prometheus metrics scraped at `/metrics`  
-- Grafana dashboard included:  
-  `monitoring/grafana-dashboard.json`
+Train commodity:
+```bash
+python scripts/train.py gold --horizon 1
+```
 
----
+Predict commodity:
+```bash
+python scripts/predict.py gold --horizon 30
+```
 
-# 🏁 Final Notes
-
-This project demonstrates **real-world MLOps expertise**:
-- Automated retraining  
-- Drift detection  
-- CI/CD  
-- Cloud deployment  
-- ML API serving  
-- Infrastructure as Code  
-
-Perfect for showcasing production engineering skills to recruiters.
