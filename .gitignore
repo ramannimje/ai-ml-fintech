@@ -15,3 +15,10 @@ terraform.tfstate*
 .venv/
 dist/
 build/
+frontend/node_modules/
+frontend/dist/
+backend/ml/cache/
+backend/ml/artifacts/
+commodity.db
+!.env.example
+frontend/*.tsbuildinfo

@@ -1,209 +1,115 @@
+# AI Commodity Predictor Monorepo
 
-# 🚀 Real-Time Fraud Detection MLOps System (FinTech)
+End-to-end commodity forecasting platform with a FastAPI backend and premium React frontend, served as one application through Nginx.
 
-**End-to-end production-grade MLOps project built for real-time fraud detection in financial transactions.**  
-This system simulates live banking transactions, scores them through an XGBoost model, detects data drift, retrains automatically, and deploys continuously using AWS, Docker, Terraform, and GitHub Actions.
+## Monorepo Structure
 
-A complete showcase of **machine learning engineering + MLOps + cloud deployment**.
-
----
-
-## ⭐ Project Highlights (Why This Project Stands Out)
-
-- **FinTech domain** – Realistic fraud detection use case  
-- **Real-time inference API** (FastAPI + Docker + ECS Fargate)  
-- **MLflow-powered experiment tracking + model registry**  
-- **Automated training pipeline** (feature engineering, evaluation, registry)  
-- **Data drift monitoring** using Evidently AI  
-- **Automated CI/CD deployment** through GitHub Actions  
-- **Infrastructure-as-Code** using Terraform (ECR, ECS, ALB, IAM, VPC, S3)  
-- **Prometheus metrics + Grafana dashboard**  
-- **Production-style architecture** — not a toy ML project  
-- **Fully reproducible end-to-end pipeline**  
-
-This is a **portfolio-ready FinTech MLOps system** built to demonstrate senior engineering capability.
-
----
-
-# 📸 Screenshots (Showcase)
-
-### **Fraud Detection API Screenshot**
-
-![Fraud Detection API UI](A_screenshot_of_an_API_web_interface_displays_a_fr.png)
-
----
-
-# 🧠 Architecture Overview
-
-```
-                ┌────────────────────────┐
-                │ Synthetic Transaction   │
-                │     Generator (Python) │
-                └───────────────▲────────┘
-                                │
-                                ▼
-                        ┌─────────────┐
-                        │   S3 Bucket │◄─────────────┐
-                        └───────▲─────┘              │
-                                │                    │
-                                │                    │
-                     ┌──────────┴──────────┐   ┌─────┴───────────┐
-                     │ Model Training (CI) │   │ Drift Monitor    │
-                     │  XGBoost + MLflow   │   │  Evidently AI    │
-                     └──────────▲──────────┘   └────────▲─────────┘
-                                │                     │
-                                │                     │ triggers retrain
-                                ▼                     │
-                     ┌─────────────────────┐          │
-                     │   MLflow Registry   │──────────┘
-                     └──────────▲──────────┘
-                                │ deploy latest Production model
-                                ▼
-                         ┌─────────────┐
-                         │  AWS ECR    │
-                         └────▲────────┘
-                              │ Docker image
-                              ▼
-                        ┌───────────────┐
-                        │ AWS ECS Fargate│
-                        │  FastAPI API  │
-                        └───────▲───────┘
-                                │
-                                ▼
-                         ┌────────────┐
-                         │   Users     │
-                         └────────────┘
+```text
+ai-commodity-predictor/
+├── backend/
+│   ├── app/
+│   ├── ml/
+│   ├── tests/
+│   ├── docker/
+│   ├── requirements.txt
+│   └── main.py
+├── frontend/
+│   ├── public/
+│   ├── src/
+│   ├── package.json
+│   └── vite.config.ts
+├── infra/
+│   ├── nginx/
+│   └── docker-compose.yml
+├── .env.example
+├── Makefile
+└── README.md
 ```
 
----
+## Architecture
 
-# 🧬 End-to-End Pipeline
-
-### **1️⃣ Data Simulation Layer**
-- Generates realistic banking transactions  
-- Uploads them to S3 (training + monitoring)  
-- Can stream live to API  
-
-### **2️⃣ Training Pipeline**
-- Feature engineering  
-- XGBoost training  
-- MLflow experiment tracking  
-- Model registry + Production stage transitions  
-- Model artifact stored in S3  
-
-### **3️⃣ Real-Time Inference**
-- FastAPI service  
-- Dockerized  
-- Deployed on AWS ECS Fargate  
-- Low latency predictions  
-
-### **4️⃣ Drift Monitoring**
-- Evidently AI reports  
-- Feature drift  
-- Data drift  
-- Prediction drift  
-- Auto‑retrain trigger via S3 drift flag  
-
-### **5️⃣ CI/CD**
-- GitHub Actions pipeline  
-- Build → Test → Dockerize → Push to ECR → Terraform Apply → Deploy  
-
----
-
-# 🛠️ Tech Stack
-
-### **MLOps**
-MLflow, Evidently AI, XGBoost
-
-### **Backend**
-FastAPI, Uvicorn, Docker
-
-### **Cloud**
-AWS ECS, ECR, S3, ALB, IAM, VPC
-
-### **Infrastructure**
-Terraform, GitHub Actions, Prometheus, Grafana
-
----
-
-# 🚀 Local Setup
-
-### **1. Install dependencies**
-```
-pip install -r requirements.txt
+```text
+Browser
+  │
+  ▼
+Nginx (single entrypoint :80)
+  ├── /      -> Frontend (React + Vite)
+  └── /api/* -> Backend (FastAPI + ML services)
+                    ├── PostgreSQL metadata (training_runs)
+                    └── Model/data artifacts on filesystem
 ```
 
-### **2. Start local API + MLflow**
-```
-docker-compose up --build
-```
+## Frontend Stack
 
-### **3. Generate training data**
-```
-python -m src.data_simulation.transaction_generator
-```
+- React 18 + TypeScript + Vite
+- TailwindCSS + utility-first dark UI
+- TanStack Query (cache + fetch orchestration)
+- Zustand (theme persistence)
+- Recharts (market and prediction visuals)
+- React Router v6
+- Axios + Zod API client validation
+- Framer Motion animations
+- Vitest + ESLint + Typecheck
 
-### **4. Train the model**
-```
-python -m src.model_training.train
-```
+## Backend API (proxied by Nginx)
 
-### **5. Test prediction**
-```
-curl -X POST http://localhost:8000/predict   -H "Content-Type: application/json"   -d '{
-    "transaction_id": "t1",
-    "customer_id": "c1",
-    "amount": 1500,
-    "merchant_category": "electronics",
-    "transaction_type": "online",
-    "device_id": "dev123",
-    "geo_location": "IN-MH",
-    "timestamp": "2024-11-01T10:00:00Z"
-  }'
-```
+- `GET /api/health`
+- `GET /api/commodities`
+- `GET /api/historical/{commodity}`
+- `POST /api/train/{commodity}?horizon=1|7|30`
+- `GET /api/predict/{commodity}?horizon=1|7|30`
+- `GET /api/metrics/{commodity}`
+- `POST /api/retrain-all?horizon=1|7|30`
 
----
+## Local Setup
 
-# 🌩️ Deploy to AWS
+### 1) Environment
 
-### **Prerequisites**
-- AWS account
-- IAM OIDC role for GitHub
-- Terraform installed
-- GitHub Secrets configured:
-  - `AWS_ACCOUNT_ID`
-  - `AWS_OIDC_ROLE_ARN`
-
-### **Deploy**
-Push to `main`:
-```
-git push
+```bash
+cp .env.example .env
 ```
 
-GitHub Actions:
-- Builds Docker image  
-- Pushes to ECR  
-- Runs Terraform  
-- Deploys to ECS  
+### 2) Run full stack (recommended)
 
----
+```bash
+docker compose up --build
+```
 
-# 📊 Monitoring Dashboards
+Open: `http://localhost/`
 
-- Prometheus metrics scraped at `/metrics`  
-- Grafana dashboard included:  
-  `monitoring/grafana-dashboard.json`
+### 3) Run in split dev mode
 
----
+Terminal A:
+```bash
+make backend-dev
+```
 
-# 🏁 Final Notes
+Terminal B:
+```bash
+make frontend-dev
+```
 
-This project demonstrates **real-world MLOps expertise**:
-- Automated retraining  
-- Drift detection  
-- CI/CD  
-- Cloud deployment  
-- ML API serving  
-- Infrastructure as Code  
+## Developer Commands
 
-Perfect for showcasing production engineering skills to recruiters.
+```bash
+make dev      # full stack via Docker
+make build    # frontend build + docker build
+make test     # backend pytest + frontend vitest
+make lint     # frontend eslint + typecheck
+```
+
+## How frontend talks to backend
+
+- All UI calls use `frontend/src/api/client.ts` with base URL `/api`.
+- Nginx routes `/api/*` to backend service.
+- React Query policies:
+  - Historical: stale 10 minutes
+  - Metrics: stale 5 minutes
+  - Predictions: no cache (stale 0)
+
+## Screenshots
+
+- Dashboard (placeholder): `docs/screenshots/dashboard.png`
+- Commodity detail (placeholder): `docs/screenshots/commodity.png`
+- Train models (placeholder): `docs/screenshots/train.png`
+- Metrics table (placeholder): `docs/screenshots/metrics.png`
