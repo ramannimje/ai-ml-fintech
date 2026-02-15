@@ -1,4 +1,4 @@
-# AI Commodity Predictor Monorepo
+# AI Commodity Predictor
 
 End-to-end commodity forecasting platform with a FastAPI backend and premium React frontend, served as one application through Nginx.
 
