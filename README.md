@@ -111,7 +111,11 @@ make lint     # frontend eslint + typecheck
 
 ## Screenshots
 
-- Dashboard (placeholder): `docs/screenshots/dashboard.png`
-- Commodity detail (placeholder): `docs/screenshots/commodity.png`
-- Train models (placeholder): `docs/screenshots/train.png`
-- Metrics table (placeholder): `docs/screenshots/metrics.png`
+- Dashboard: <img width="2878" height="1600" alt="image" src="https://github.com/user-attachments/assets/ab5dc3e3-5554-49d8-a183-b2e15e014102" />
+
+- Commodity detail: <img width="2878" height="1600" alt="image" src="https://github.com/user-attachments/assets/7f59366c-cc3c-4187-a9f7-f517dbdd7671" />
+
+- Train models: <img width="2878" height="1600" alt="image" src="https://github.com/user-attachments/assets/3be2fe3a-f5e7-4154-a7a5-4f623f471ce5" />
+
+- Metrics table: <img width="2878" height="1600" alt="image" src="https://github.com/user-attachments/assets/6567e94f-502f-428d-a8bc-1c3a7a6d9676" />
+
