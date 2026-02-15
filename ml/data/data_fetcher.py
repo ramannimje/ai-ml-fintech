@@ -21,6 +21,26 @@ class MarketDataFetcher:
     def _cache_path(self, commodity: str) -> Path:
         return self.cache_dir / f"{commodity}.csv"
 
+    @staticmethod
+    def _normalize_download(df: pd.DataFrame) -> pd.DataFrame:
+        if df.empty:
+            return df
+
+        if isinstance(df.columns, pd.MultiIndex):
+            # yfinance can return MultiIndex columns even for one symbol.
+            df.columns = [str(col[0]) for col in df.columns]
+        else:
+            df.columns = [str(col) for col in df.columns]
+
+        if "Date" not in df.columns and "Datetime" in df.columns:
+            df = df.rename(columns={"Datetime": "Date"})
+
+        required = ["Date", "Open", "High", "Low", "Close", "Volume"]
+        missing = [col for col in required if col not in df.columns]
+        if missing:
+            raise ValueError(f"Historical data missing columns: {missing}. Available: {list(df.columns)}")
+        return df
+
     def get_historical(self, commodity: str, period: str = "5y") -> pd.DataFrame:
         symbol = COMMODITY_SYMBOLS[commodity]
         path = self._cache_path(commodity)
@@ -28,11 +48,16 @@ class MarketDataFetcher:
 
         if cached.empty:
             fresh = yf.download(symbol, period=period, auto_adjust=False, progress=False).reset_index()
+            fresh = self._normalize_download(fresh)
         else:
             last_dt = cached["Date"].max().to_pydatetime().replace(tzinfo=timezone.utc)
             start = (last_dt + timedelta(days=1)).date().isoformat()
             fresh = yf.download(symbol, start=start, auto_adjust=False, progress=False).reset_index()
-            fresh = pd.concat([cached, fresh], ignore_index=True)
+            if not fresh.empty:
+                fresh = self._normalize_download(fresh)
+                fresh = pd.concat([cached, fresh], ignore_index=True)
+            else:
+                fresh = cached.copy()
 
         fresh = fresh[["Date", "Open", "High", "Low", "Close", "Volume"]].drop_duplicates("Date")
         fresh = fresh.sort_values("Date").ffill().dropna()

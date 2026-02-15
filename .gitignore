@@ -15,3 +15,7 @@ terraform.tfstate*
 .venv/
 dist/
 build/
+ml/artifacts/
+ml/cache/
+*.db
+*.joblib
