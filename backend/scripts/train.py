@@ -1,8 +1,8 @@
 import argparse
 import asyncio
 
-from backend.app.db.session import AsyncSessionLocal
-from backend.app.services.commodity_service import CommodityService
+from app.db.session import AsyncSessionLocal
+from app.services.commodity_service import CommodityService
 
 
 async def main(commodity: str, horizon: int) -> None:

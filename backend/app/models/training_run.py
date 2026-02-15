@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, Float, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from backend.app.db.base import Base
+from app.db.base import Base
 
 
 class TrainingRun(Base):

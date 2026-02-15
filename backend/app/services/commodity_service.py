@@ -7,13 +7,13 @@ import numpy as np
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.config import get_settings
-from backend.app.core.exceptions import CommodityNotSupportedError, TrainingError
-from backend.app.models.training_run import TrainingRun
-from backend.app.schemas.responses import TrainResponse
-from backend.ml.data.data_fetcher import COMMODITY_SYMBOLS, MarketDataFetcher
-from backend.ml.features.engineer import add_features, make_supervised
-from backend.ml.inference.artifacts import load_model, save_model
+from app.core.config import get_settings
+from app.core.exceptions import CommodityNotSupportedError, TrainingError
+from app.models.training_run import TrainingRun
+from app.schemas.responses import TrainResponse
+from ml.data.data_fetcher import COMMODITY_SYMBOLS, MarketDataFetcher
+from ml.features.engineer import add_features, make_supervised
+from ml.inference.artifacts import load_model, save_model
 
 
 class CommodityService:
@@ -41,7 +41,7 @@ class CommodityService:
             raise TrainingError("Not enough data points to train")
 
         x, y = make_supervised(feat, horizon=horizon)
-        from backend.ml.training.models import benchmark_models
+        from ml.training.models import benchmark_models
         ranked = benchmark_models(x, y)
         if not ranked:
             raise TrainingError("No model could be trained")

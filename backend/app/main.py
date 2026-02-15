@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 
-from backend.app.api.routes import router
-from backend.app.core.config import get_settings
-from backend.app.core.logging import setup_logging
-from backend.app.db.base import Base
-from backend.app.db.session import engine
+from app.api.routes import router
+from app.core.config import get_settings
+from app.core.logging import setup_logging
+from app.db.base import Base
+from app.db.session import engine
 
 settings = get_settings()
 setup_logging()

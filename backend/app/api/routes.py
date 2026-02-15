@@ -3,9 +3,9 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.exceptions import CommodityNotSupportedError, TrainingError
-from backend.app.db.session import get_session
-from backend.app.schemas.responses import (
+from app.core.exceptions import CommodityNotSupportedError, TrainingError
+from app.db.session import get_session
+from app.schemas.responses import (
     CommodityListResponse,
     HealthResponse,
     HistoricalPoint,
@@ -15,7 +15,7 @@ from backend.app.schemas.responses import (
     RetrainAllResponse,
     TrainResponse,
 )
-from backend.app.services.commodity_service import CommodityService
+from app.services.commodity_service import CommodityService
 
 router = APIRouter(prefix="/api")
 service = CommodityService()

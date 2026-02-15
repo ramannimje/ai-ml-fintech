@@ -19,6 +19,9 @@ frontend/node_modules/
 frontend/dist/
 backend/ml/cache/
 backend/ml/artifacts/
+ml/cache/
+ml/artifacts/
+backend/backend/
 commodity.db
 !.env.example
 frontend/*.tsbuildinfo

@@ -6,8 +6,8 @@ class Settings(BaseSettings):
     app_name: str = "AI Commodity Predictor"
     environment: str = "dev"
     database_url: str = "sqlite+aiosqlite:///./commodity.db"
-    data_cache_dir: str = "backend/ml/cache"
-    artifact_dir: str = "backend/ml/artifacts"
+    data_cache_dir: str = "ml/cache"
+    artifact_dir: str = "ml/artifacts"
     forecast_horizons: tuple[int, ...] = (1, 7, 30)
     min_training_rows: int = 180
 
