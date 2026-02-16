@@ -1,7 +1,7 @@
 services:
   backend:
     build:
-      context: .
+      context: ..
       dockerfile: backend/Dockerfile
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/commodity
@@ -10,11 +10,11 @@ services:
     depends_on:
       - postgres
     volumes:
-      - ./backend/ml:/app/backend/ml
+      - ../backend/ml:/app/backend/ml
 
   frontend:
     build:
-      context: .
+      context: ..
       dockerfile: frontend/Dockerfile
 
   postgres:
@@ -31,7 +31,7 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - backend
       - frontend

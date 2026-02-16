@@ -1,209 +1,71 @@
+# AI Commodity Predictor Monorepo
 
-# 🚀 Real-Time Fraud Detection MLOps System (FinTech)
+FastAPI + React market intelligence platform for commodity pricing and forecasting across India, US, and Europe.
 
-**End-to-end production-grade MLOps project built for real-time fraud detection in financial transactions.**  
-This system simulates live banking transactions, scores them through an XGBoost model, detects data drift, retrains automatically, and deploys continuously using AWS, Docker, Terraform, and GitHub Actions.
+## Multi-Region Pricing & Forecasting
 
-A complete showcase of **machine learning engineering + MLOps + cloud deployment**.
+The platform now supports regional pricing standards with canonical storage in **grams**:
 
----
+| Region | Currency | Display Unit |
+|---|---|---|
+| India | INR | per 10 grams |
+| United States | USD | per troy ounce |
+| Europe | EUR | per gram |
 
-## ⭐ Project Highlights (Why This Project Stands Out)
+How it works:
+- Backend stores canonical `price_in_grams` and converts per region at response time.
+- FX conversion uses exchangerate.host with 1-hour cache + fallback values.
+- Historical data is region-tagged (`commodity`, `timestamp`, `region`, `price_in_grams`, `currency`, `source`).
+- Forecasts provide short + long horizon points (including yearly milestones up to 2028).
 
-- **FinTech domain** – Realistic fraud detection use case  
-- **Real-time inference API** (FastAPI + Docker + ECS Fargate)  
-- **MLflow-powered experiment tracking + model registry**  
-- **Automated training pipeline** (feature engineering, evaluation, registry)  
-- **Data drift monitoring** using Evidently AI  
-- **Automated CI/CD deployment** through GitHub Actions  
-- **Infrastructure-as-Code** using Terraform (ECR, ECS, ALB, IAM, VPC, S3)  
-- **Prometheus metrics + Grafana dashboard**  
-- **Production-style architecture** — not a toy ML project  
-- **Fully reproducible end-to-end pipeline**  
+### Forecast interpretation and limitations
+- Long-horizon (to 2028) projections are model-based scenarios, not guaranteed outcomes.
+- Accuracy decreases as horizon extends.
+- Macro-exogenous features are included as extensible placeholders (inflation, USD index, rates).
 
-This is a **portfolio-ready FinTech MLOps system** built to demonstrate senior engineering capability.
+## Monorepo Structure
 
----
-
-# 📸 Screenshots (Showcase)
-
-### **Fraud Detection API Screenshot**
-
-![Fraud Detection API UI](A_screenshot_of_an_API_web_interface_displays_a_fr.png)
-
----
-
-# 🧠 Architecture Overview
-
-```
-                ┌────────────────────────┐
-                │ Synthetic Transaction   │
-                │     Generator (Python) │
-                └───────────────▲────────┘
-                                │
-                                ▼
-                        ┌─────────────┐
-                        │   S3 Bucket │◄─────────────┐
-                        └───────▲─────┘              │
-                                │                    │
-                                │                    │
-                     ┌──────────┴──────────┐   ┌─────┴───────────┐
-                     │ Model Training (CI) │   │ Drift Monitor    │
-                     │  XGBoost + MLflow   │   │  Evidently AI    │
-                     └──────────▲──────────┘   └────────▲─────────┘
-                                │                     │
-                                │                     │ triggers retrain
-                                ▼                     │
-                     ┌─────────────────────┐          │
-                     │   MLflow Registry   │──────────┘
-                     └──────────▲──────────┘
-                                │ deploy latest Production model
-                                ▼
-                         ┌─────────────┐
-                         │  AWS ECR    │
-                         └────▲────────┘
-                              │ Docker image
-                              ▼
-                        ┌───────────────┐
-                        │ AWS ECS Fargate│
-                        │  FastAPI API  │
-                        └───────▲───────┘
-                                │
-                                ▼
-                         ┌────────────┐
-                         │   Users     │
-                         └────────────┘
+```text
+backend/    # FastAPI, ML pipeline, tests
+frontend/   # React + Vite UI
+infra/      # Nginx and infra compose assets
 ```
 
----
+## API
 
-# 🧬 End-to-End Pipeline
+All endpoints are served under `/api` and accept optional `region=india|us|europe`:
+- `GET /api/commodities`
+- `GET /api/historical/{commodity}?region=india&range=5y`
+- `POST /api/train/{commodity}?region=us&horizon=30`
+- `GET /api/predict/{commodity}?region=europe&horizon=30`
+- `GET /api/metrics/{commodity}?region=us`
+- `POST /api/retrain-all?region=india&horizon=7`
 
-### **1️⃣ Data Simulation Layer**
-- Generates realistic banking transactions  
-- Uploads them to S3 (training + monitoring)  
-- Can stream live to API  
+## Run locally (end-to-end)
 
-### **2️⃣ Training Pipeline**
-- Feature engineering  
-- XGBoost training  
-- MLflow experiment tracking  
-- Model registry + Production stage transitions  
-- Model artifact stored in S3  
-
-### **3️⃣ Real-Time Inference**
-- FastAPI service  
-- Dockerized  
-- Deployed on AWS ECS Fargate  
-- Low latency predictions  
-
-### **4️⃣ Drift Monitoring**
-- Evidently AI reports  
-- Feature drift  
-- Data drift  
-- Prediction drift  
-- Auto‑retrain trigger via S3 drift flag  
-
-### **5️⃣ CI/CD**
-- GitHub Actions pipeline  
-- Build → Test → Dockerize → Push to ECR → Terraform Apply → Deploy  
-
----
-
-# 🛠️ Tech Stack
-
-### **MLOps**
-MLflow, Evidently AI, XGBoost
-
-### **Backend**
-FastAPI, Uvicorn, Docker
-
-### **Cloud**
-AWS ECS, ECR, S3, ALB, IAM, VPC
-
-### **Infrastructure**
-Terraform, GitHub Actions, Prometheus, Grafana
-
----
-
-# 🚀 Local Setup
-
-### **1. Install dependencies**
-```
-pip install -r requirements.txt
+```bash
+cp .env.example .env
+docker compose up --build
 ```
 
-### **2. Start local API + MLflow**
-```
-docker-compose up --build
-```
+Open `http://localhost`.
 
-### **3. Generate training data**
-```
-python -m src.data_simulation.transaction_generator
-```
+Nginx routing:
+- `/` -> frontend
+- `/api/*` -> backend
 
-### **4. Train the model**
-```
-python -m src.model_training.train
-```
+## Dev commands
 
-### **5. Test prediction**
-```
-curl -X POST http://localhost:8000/predict   -H "Content-Type: application/json"   -d '{
-    "transaction_id": "t1",
-    "customer_id": "c1",
-    "amount": 1500,
-    "merchant_category": "electronics",
-    "transaction_type": "online",
-    "device_id": "dev123",
-    "geo_location": "IN-MH",
-    "timestamp": "2024-11-01T10:00:00Z"
-  }'
+```bash
+make backend-dev
+make frontend-dev
+make test
+make lint
+make build
 ```
 
----
+## Migration
 
-# 🌩️ Deploy to AWS
+A migration script for adding `region` column exists:
+- `backend/alembic/versions/20260215_01_add_region_to_training_runs.py`
 
-### **Prerequisites**
-- AWS account
-- IAM OIDC role for GitHub
-- Terraform installed
-- GitHub Secrets configured:
-  - `AWS_ACCOUNT_ID`
-  - `AWS_OIDC_ROLE_ARN`
-
-### **Deploy**
-Push to `main`:
-```
-git push
-```
-
-GitHub Actions:
-- Builds Docker image  
-- Pushes to ECR  
-- Runs Terraform  
-- Deploys to ECS  
-
----
-
-# 📊 Monitoring Dashboards
-
-- Prometheus metrics scraped at `/metrics`  
-- Grafana dashboard included:  
-  `monitoring/grafana-dashboard.json`
-
----
-
-# 🏁 Final Notes
-
-This project demonstrates **real-world MLOps expertise**:
-- Automated retraining  
-- Drift detection  
-- CI/CD  
-- Cloud deployment  
-- ML API serving  
-- Infrastructure as Code  
-
-Perfect for showcasing production engineering skills to recruiters.
