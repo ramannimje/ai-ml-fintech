@@ -69,3 +69,22 @@ make build
 A migration script for adding `region` column exists:
 - `backend/alembic/versions/20260215_01_add_region_to_training_runs.py`
 
+
+## Resolving PR conflicts against main
+
+If your PR shows conflicts with `main` and you want to keep everything from your current branch, run:
+
+```bash
+bash backend/scripts/resolve_main_conflicts.sh origin/main
+```
+
+What it does:
+- fetches latest refs
+- merges `origin/main` into your current branch with `-X ours`
+- if any unresolved paths remain, it force-keeps current branch versions and commits
+
+Then push:
+
+```bash
+git push
+```
