@@ -11,16 +11,16 @@ export function MetricsPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Cross-Region Snapshot</h1>
-      <div className="overflow-hidden rounded-xl border border-slate-200">
+      <div className="surface-card overflow-hidden rounded-xl">
         <table className="w-full text-left text-sm">
-          <thead className="bg-slate-100 text-slate-700">
+          <thead className="surface-muted text-muted">
             <tr><th className="p-3">Commodity</th><th>Region</th><th>Live Price</th><th>Currency</th><th>Unit</th><th>Source</th></tr>
           </thead>
           <tbody>
             {isLoading && <tr><td className="p-3" colSpan={6}>Loading...</td></tr>}
             {isError && <tr><td className="p-3 text-red-600" colSpan={6}>Error loading live metrics</td></tr>}
             {data?.map((row) => (
-              <tr key={`${row.commodity}-${row.region}`} className="border-t border-slate-200">
+              <tr key={`${row.commodity}-${row.region}`} className="border-t" style={{ borderColor: 'var(--border)' }}>
                 <td className="p-3">{row.commodity}</td>
                 <td>{row.region}</td>
                 <td>{row.live_price.toFixed(2)}</td>

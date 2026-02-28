@@ -29,21 +29,21 @@ export function DashboardPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Live Bullion Analytics</h1>
-        <select value={region} onChange={(e) => setRegion(e.target.value as Region)} className="rounded border border-slate-300 bg-white px-3 py-1">
+        <select value={region} onChange={(e) => setRegion(e.target.value as Region)} className="ui-input rounded px-3 py-1">
           {regions.map((r) => <option key={r} value={r}>{r.toUpperCase()}</option>)}
         </select>
       </div>
 
-      {isLoading && <div className="rounded border border-slate-200 bg-white p-4 text-sm">Loading live prices...</div>}
+      {isLoading && <div className="surface-card rounded p-4 text-sm">Loading live prices...</div>}
       {isError && <div className="rounded border border-red-200 bg-red-50 p-4 text-sm text-red-700">Failed to load live prices.</div>}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {data?.map((item) => (
-          <div key={item.commodity} className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="text-xs uppercase text-slate-500">{item.commodity.replace('_', ' ')}</div>
+          <div key={item.commodity} className="surface-card rounded-xl p-4">
+            <div className="text-muted text-xs uppercase">{item.commodity.replace('_', ' ')}</div>
             <div className="mt-2 text-2xl font-semibold">{item.live_price.toFixed(2)} {item.currency}</div>
-            <div className="text-xs text-slate-500">{item.unit} | {item.source}</div>
-            <Link to={`/commodity/${item.commodity}?region=${region}`} className="mt-2 inline-block text-sm text-blue-700">Open analysis</Link>
+            <div className="text-muted text-xs">{item.unit} | {item.source}</div>
+            <Link to={`/commodity/${item.commodity}?region=${region}`} className="text-accent mt-2 inline-block text-sm">Open analysis</Link>
           </div>
         ))}
       </div>
@@ -60,8 +60,8 @@ export function DashboardPage() {
 
 function Stat({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="text-xs uppercase text-slate-500">{title}</div>
+    <div className="surface-card rounded-xl p-4">
+      <div className="text-muted text-xs uppercase">{title}</div>
       <div className="mt-2 text-lg font-semibold">{value}</div>
     </div>
   );

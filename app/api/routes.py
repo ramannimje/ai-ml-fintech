@@ -7,6 +7,7 @@ from app.core.exceptions import CommodityNotSupportedError, TrainingError
 from app.db.session import get_session
 from app.schemas.responses import (
     CommodityDefinition,
+    ErrorResponse,
     HealthResponse,
     LivePriceResponse,
     LivePricesEnvelope,
@@ -33,6 +34,10 @@ COMMODITY_CATALOG = [
 ]
 
 
+def _err(code: str, message: str, **context: str) -> dict:
+    return {"error": {"code": code, "message": message, "context": context}}
+
+
 @router.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     return HealthResponse(status="ok", timestamp=datetime.now(timezone.utc))
@@ -48,25 +53,46 @@ async def commodities() -> list[CommodityDefinition]:
     return COMMODITY_CATALOG
 
 
-@router.get("/live-prices", response_model=LivePricesEnvelope)
+@router.get(
+    "/live-prices",
+    response_model=LivePricesEnvelope,
+    responses={503: {"model": ErrorResponse}},
+)
 async def live_prices() -> LivePricesEnvelope:
     try:
         return LivePricesEnvelope(items=await service.live_prices())
     except (CommodityNotSupportedError, TrainingError, RuntimeError) as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=503,
+            detail=_err("LIVE_PRICE_UNAVAILABLE", str(exc)),
+        ) from exc
 
 
-@router.get("/live-prices/{region}", response_model=LivePricesEnvelope)
+@router.get(
+    "/live-prices/{region}",
+    response_model=LivePricesEnvelope,
+    responses={400: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
+)
 async def live_prices_region(region: str) -> LivePricesEnvelope:
     try:
         return LivePricesEnvelope(items=await service.live_prices(region=region))
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=400,
+            detail=_err("INVALID_REGION", str(exc), region=region),
+        ) from exc
     except (CommodityNotSupportedError, TrainingError, RuntimeError) as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=503,
+            detail=_err("LIVE_PRICE_UNAVAILABLE", str(exc), region=region),
+        ) from exc
 
 
-@router.get("/historical/{commodity}/{region}", response_model=RegionalHistoricalResponse)
+@router.get(
+    "/historical/{commodity}/{region}",
+    response_model=RegionalHistoricalResponse,
+    responses={400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+)
 async def historical(
     commodity: str,
     region: str,
@@ -75,12 +101,22 @@ async def historical(
     try:
         return await service.historical(commodity, region=region, period=range)
     except CommodityNotSupportedError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=404,
+            detail=_err("UNSUPPORTED_COMMODITY", str(exc), commodity=commodity),
+        ) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=400,
+            detail=_err("INVALID_REQUEST", str(exc), commodity=commodity, region=region),
+        ) from exc
 
 
-@router.get("/predict/{commodity}/{region}", response_model=RegionalPredictionResponse)
+@router.get(
+    "/predict/{commodity}/{region}",
+    response_model=RegionalPredictionResponse,
+    responses={400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+)
 async def predict(
     commodity: str,
     region: str,
@@ -90,12 +126,22 @@ async def predict(
     try:
         return await service.predict(session, commodity, region=region, horizon=horizon)
     except CommodityNotSupportedError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=404,
+            detail=_err("UNSUPPORTED_COMMODITY", str(exc), commodity=commodity),
+        ) from exc
     except (ValueError, TrainingError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=400,
+            detail=_err("PREDICTION_FAILED", str(exc), commodity=commodity, region=region),
+        ) from exc
 
 
-@router.post("/train/{commodity}/{region}", response_model=TrainResponse)
+@router.post(
+    "/train/{commodity}/{region}",
+    response_model=TrainResponse,
+    responses={400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+)
 async def train(
     commodity: str,
     region: str,
@@ -105,6 +151,12 @@ async def train(
     try:
         return await service.train(session, commodity, region=region, horizon=horizon)
     except CommodityNotSupportedError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=404,
+            detail=_err("UNSUPPORTED_COMMODITY", str(exc), commodity=commodity),
+        ) from exc
     except (ValueError, TrainingError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=400,
+            detail=_err("TRAINING_FAILED", str(exc), commodity=commodity, region=region),
+        ) from exc

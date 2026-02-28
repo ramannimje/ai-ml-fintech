@@ -52,16 +52,16 @@ export function CommodityPage() {
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">{commodity.replace('_', ' ').toUpperCase()}</h1>
       <div className="flex flex-wrap gap-2">
-        <select value={region} onChange={(e) => onRegion(e.target.value as Region)} className="rounded border border-slate-300 bg-white px-3 py-1">
+        <select value={region} onChange={(e) => onRegion(e.target.value as Region)} className="ui-input rounded px-3 py-1">
           <option value="india">India</option>
           <option value="us">US</option>
           <option value="europe">Europe</option>
         </select>
-        <select value={range} onChange={(e) => setRange(e.target.value as typeof ranges[number])} className="rounded border border-slate-300 bg-white px-3 py-1">
+        <select value={range} onChange={(e) => setRange(e.target.value as typeof ranges[number])} className="ui-input rounded px-3 py-1">
           {ranges.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
         {[7, 30, 90].map((h) => (
-          <button key={h} onClick={() => setHorizon(h)} className="rounded border border-slate-300 bg-white px-3 py-1">
+          <button key={h} onClick={() => setHorizon(h)} className="ui-input rounded px-3 py-1">
             {h}D horizon
           </button>
         ))}
@@ -69,13 +69,13 @@ export function CommodityPage() {
 
       <CommodityChart data={chartData} />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="surface-card rounded-xl p-4">
           <h2 className="font-medium">Prediction Overlay</h2>
           <p className="mt-2 text-xl">{prediction.data?.point_forecast?.toFixed(2) ?? '—'} {prediction.data?.currency ?? ''}</p>
-          <p className="text-sm text-slate-500">CI: {prediction.data?.confidence_interval?.join(' - ') ?? '—'}</p>
-          <p className="text-sm text-slate-500">Scenario: {prediction.data?.scenario ?? '—'}</p>
+          <p className="text-muted text-sm">CI: {prediction.data?.confidence_interval?.join(' - ') ?? '—'}</p>
+          <p className="text-muted text-sm">Scenario: {prediction.data?.scenario ?? '—'}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="surface-card rounded-xl p-4">
           <h2 className="font-medium">Scenario Forecasts</h2>
           <p className="mt-2 text-sm">Bull: {prediction.data?.scenario_forecasts?.bull?.toFixed(2) ?? '—'}</p>
           <p className="text-sm">Base: {prediction.data?.scenario_forecasts?.base?.toFixed(2) ?? '—'}</p>

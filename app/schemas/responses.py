@@ -8,6 +8,16 @@ class HealthResponse(BaseModel):
     timestamp: datetime
 
 
+class ErrorDetail(BaseModel):
+    code: str
+    message: str
+    context: dict[str, str] = Field(default_factory=dict)
+
+
+class ErrorResponse(BaseModel):
+    error: ErrorDetail
+
+
 class CommodityListResponse(BaseModel):
     commodities: list[str]
 

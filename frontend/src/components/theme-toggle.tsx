@@ -4,7 +4,7 @@ export function ThemeToggle() {
   const { theme, setTheme } = useUiStore();
   return (
     <select
-      className="rounded border border-slate-300 bg-white px-2 py-1 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+      className="ui-input rounded px-2 py-1"
       value={theme}
       onChange={(e) => setTheme(e.target.value as 'dark' | 'light' | 'system')}
     >

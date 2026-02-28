@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import logging
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -231,6 +232,8 @@ class CommodityService:
                 "model_name": best.name,
             },
         )
+        if not artifact.exists():
+            raise TrainingError(f"Model artifact not found after save: {artifact}")
 
         run = TrainingRun(
             commodity=commodity,
@@ -242,7 +245,17 @@ class CommodityService:
             artifact_path=str(artifact),
         )
         session.add(run)
-        await session.commit()
+        try:
+            await session.commit()
+        except IntegrityError as exc:
+            await session.rollback()
+            msg = str(exc.orig).lower() if exc.orig else str(exc).lower()
+            if "model_version" in msg and "unique" in msg:
+                raise TrainingError("Duplicate model_version detected; retry training") from exc
+            raise TrainingError("Training metadata insert failed (integrity error)") from exc
+        except SQLAlchemyError as exc:
+            await session.rollback()
+            raise TrainingError("Training metadata insert failed (database error)") from exc
         return TrainResponse(
             commodity=commodity,
             region=region,

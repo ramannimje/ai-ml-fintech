@@ -4,6 +4,7 @@ from app.api.routes import router
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.db.base import Base
+from app.db.schema_guard import ensure_training_runs_schema
 from app.db.session import engine
 # Import all models so Base.metadata includes them
 from app.models import training_run, price_record  # noqa: F401
@@ -22,3 +23,4 @@ app.include_router(router, prefix="/api")
 async def on_startup() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await ensure_training_runs_schema(conn)
