@@ -9,6 +9,11 @@ services:
       ARTIFACT_DIR: backend/ml/artifacts
     depends_on:
       - postgres
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
     volumes:
       - ./backend/ml:/app/backend/ml
 
@@ -16,6 +21,11 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5173"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
 
   postgres:
     image: postgres:15
@@ -35,6 +45,11 @@ services:
     depends_on:
       - backend
       - frontend
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
 
 volumes:
   pgdata:

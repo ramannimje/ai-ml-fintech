@@ -10,7 +10,6 @@ COMMODITY_SYMBOLS = {
     "gold": "GC=F",
     "silver": "SI=F",
     "crude_oil": "CL=F",
-    "natural_gas": "NG=F"
 }
 
 # Macro feature symbols

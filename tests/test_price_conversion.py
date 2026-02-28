@@ -80,10 +80,10 @@ class TestConvertPrice:
 
 class TestFormatPrice:
     def test_format_price_india(self) -> None:
-        """India format: ₹ symbol, /10g unit."""
+        """India format: ₹ symbol, /10g_24k unit."""
         result = format_price(74520.0, "india")
         assert "₹" in result
-        assert "10g" in result
+        assert "10g_24k" in result
 
     def test_format_price_us(self) -> None:
         """US format: $ symbol, /oz unit."""
@@ -92,10 +92,10 @@ class TestFormatPrice:
         assert "oz" in result
 
     def test_format_price_europe(self) -> None:
-        """Europe format: € symbol, /g unit."""
+        """Europe format: € symbol, /exchange_standard unit."""
         result = format_price(74.12, "europe")
         assert "€" in result
-        assert "/g" in result
+        assert "/ exchange_standard" in result
 
 
 class TestAllRegionsPrice:

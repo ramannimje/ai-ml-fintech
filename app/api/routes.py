@@ -6,19 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import CommodityNotSupportedError, TrainingError
 from app.db.session import get_session
 from app.schemas.responses import (
-    CommodityListResponse,
-    ForecastPoint,
+    CommodityDefinition,
     HealthResponse,
-    HistoricalPoint,
-    HistoricalResponse,
-    MetricsResponse,
-    PredictionResponse,
-    RegionalComparisonResponse,
-    RegionalHistoricalPoint,
+    LivePriceResponse,
+    LivePricesEnvelope,
+    RegionDefinition,
     RegionalHistoricalResponse,
     RegionalPredictionResponse,
-    RegionPrice,
-    RetrainAllResponse,
     TrainResponse,
 )
 from app.services.commodity_service import CommodityService
@@ -26,99 +20,91 @@ from app.services.commodity_service import CommodityService
 router = APIRouter()
 service = CommodityService()
 
+REGION_CATALOG = [
+    RegionDefinition(id="india", currency="INR", unit="10g_24k"),
+    RegionDefinition(id="us", currency="USD", unit="oz"),
+    RegionDefinition(id="europe", currency="EUR", unit="exchange_standard"),
+]
+
+COMMODITY_CATALOG = [
+    CommodityDefinition(id="gold"),
+    CommodityDefinition(id="silver"),
+    CommodityDefinition(id="crude_oil"),
+]
+
 
 @router.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     return HealthResponse(status="ok", timestamp=datetime.now(timezone.utc))
 
 
-@router.get("/commodities", response_model=CommodityListResponse)
-async def commodities() -> CommodityListResponse:
-    return CommodityListResponse(commodities=service.commodities)
+@router.get("/regions", response_model=list[RegionDefinition])
+async def regions() -> list[RegionDefinition]:
+    return REGION_CATALOG
 
 
-@router.get("/historical/{commodity}", response_model=RegionalHistoricalResponse)
+@router.get("/commodities", response_model=list[CommodityDefinition])
+async def commodities() -> list[CommodityDefinition]:
+    return COMMODITY_CATALOG
+
+
+@router.get("/live-prices", response_model=LivePricesEnvelope)
+async def live_prices() -> LivePricesEnvelope:
+    try:
+        return LivePricesEnvelope(items=await service.live_prices())
+    except (CommodityNotSupportedError, TrainingError, RuntimeError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.get("/live-prices/{region}", response_model=LivePricesEnvelope)
+async def live_prices_region(region: str) -> LivePricesEnvelope:
+    try:
+        return LivePricesEnvelope(items=await service.live_prices(region=region))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (CommodityNotSupportedError, TrainingError, RuntimeError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.get("/historical/{commodity}/{region}", response_model=RegionalHistoricalResponse)
 async def historical(
     commodity: str,
-    region: str = Query("us", description="Market region: india | us | europe"),
-    range: str = Query("5y", description="Historical range e.g. 5y, 1y, 6mo"),
+    region: str,
+    range: str = Query("1y", description="1m|6m|1y|5y|max"),
 ) -> RegionalHistoricalResponse:
     try:
-        result = await service.historical(commodity, region=region, period=range)
+        return await service.historical(commodity, region=region, period=range)
     except CommodityNotSupportedError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return result
 
 
-@router.post("/train/{commodity}", response_model=TrainResponse)
-async def train(
-    commodity: str,
-    horizon: int = Query(1, ge=1, le=30),
-    region: str = Query("us", description="Market region: india | us | europe"),
-    session: AsyncSession = Depends(get_session),
-) -> TrainResponse:
-    try:
-        return await service.train(session, commodity, horizon, region=region)
-    except (CommodityNotSupportedError, TrainingError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.get("/predict/{commodity}", response_model=RegionalPredictionResponse)
+@router.get("/predict/{commodity}/{region}", response_model=RegionalPredictionResponse)
 async def predict(
     commodity: str,
-    horizon: int = Query(1, ge=1, le=30),
-    region: str = Query("us", description="Market region: india | us | europe"),
+    region: str,
+    horizon: int = Query(1, ge=1, le=90),
     session: AsyncSession = Depends(get_session),
 ) -> RegionalPredictionResponse:
     try:
-        payload = await service.predict(session, commodity, horizon, region=region)
-    except (CommodityNotSupportedError, TrainingError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return payload
-
-
-@router.get("/metrics/{commodity}", response_model=MetricsResponse)
-async def metrics(
-    commodity: str,
-    region: str = Query("us", description="Market region: india | us | europe"),
-    session: AsyncSession = Depends(get_session),
-) -> MetricsResponse:
-    try:
-        latest = await service.latest_metrics(session, commodity, region=region)
+        return await service.predict(session, commodity, region=region, horizon=horizon)
     except CommodityNotSupportedError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    if latest is None:
-        raise HTTPException(status_code=404, detail="No metrics found")
-
-    return MetricsResponse(
-        commodity=latest.commodity,
-        model_name=latest.model_version,
-        rmse=latest.rmse,
-        mape=latest.mape,
-        trained_at=latest.trained_at,
-        region=latest.region,
-    )
-
-
-@router.get("/regional-comparison/{commodity}", response_model=RegionalComparisonResponse)
-async def regional_comparison(
-    commodity: str,
-    session: AsyncSession = Depends(get_session),
-) -> RegionalComparisonResponse:
-    """Return current predicted price for a commodity in all 3 regions."""
-    try:
-        result = await service.regional_comparison(session, commodity)
-    except (CommodityNotSupportedError, TrainingError) as exc:
+    except (ValueError, TrainingError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return result
 
 
-@router.post("/retrain-all", response_model=RetrainAllResponse)
-async def retrain_all(
-    horizon: int = Query(1, ge=1, le=30),
-    region: str = Query("us", description="Market region: india | us | europe"),
+@router.post("/train/{commodity}/{region}", response_model=TrainResponse)
+async def train(
+    commodity: str,
+    region: str,
+    horizon: int = Query(1, ge=1, le=90),
     session: AsyncSession = Depends(get_session),
-) -> RetrainAllResponse:
-    return RetrainAllResponse(results=await service.retrain_all(session, horizon, region=region))
+) -> TrainResponse:
+    try:
+        return await service.train(session, commodity, region=region, horizon=horizon)
+    except CommodityNotSupportedError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (ValueError, TrainingError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

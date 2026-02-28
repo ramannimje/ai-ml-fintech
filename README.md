@@ -54,12 +54,13 @@ Nginx (single entrypoint :80)
 ## Backend API (proxied by Nginx)
 
 - `GET /api/health`
+- `GET /api/regions`
 - `GET /api/commodities`
-- `GET /api/historical/{commodity}`
-- `POST /api/train/{commodity}?horizon=1|7|30`
-- `GET /api/predict/{commodity}?horizon=1|7|30`
-- `GET /api/metrics/{commodity}`
-- `POST /api/retrain-all?horizon=1|7|30`
+- `GET /api/live-prices`
+- `GET /api/live-prices/{region}`
+- `GET /api/historical/{commodity}/{region}?range=1m|6m|1y|5y|max`
+- `GET /api/predict/{commodity}/{region}?horizon=1..90`
+- `POST /api/train/{commodity}/{region}?horizon=1..90`
 
 ## Local Setup
 
@@ -146,9 +147,13 @@ make lint     # frontend eslint + typecheck
 - All UI calls use `frontend/src/api/client.ts` with base URL `/api`.
 - Nginx routes `/api/*` to backend service.
 - React Query policies:
+  - Live prices: stale 60 seconds
   - Historical: stale 10 minutes
-  - Metrics: stale 5 minutes
   - Predictions: no cache (stale 0)
+
+## Detailed Documentation
+
+- See `docs/PLATFORM.md` for architecture, model/data flow, source logic, env setup, retraining, swagger checks, tests, and troubleshooting.
 
 ## Screenshots
 
@@ -159,4 +164,3 @@ make lint     # frontend eslint + typecheck
 - Train models: <img width="2878" height="1600" alt="image" src="https://github.com/user-attachments/assets/3be2fe3a-f5e7-4154-a7a5-4f623f471ce5" />
 
 - Metrics table: <img width="2878" height="1600" alt="image" src="https://github.com/user-attachments/assets/6567e94f-502f-428d-a8bc-1c3a7a6d9676" />
-

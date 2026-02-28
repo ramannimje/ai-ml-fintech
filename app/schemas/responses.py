@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 
@@ -12,25 +12,36 @@ class CommodityListResponse(BaseModel):
     commodities: list[str]
 
 
-class HistoricalPoint(BaseModel):
-    date: date
-    close: float
+class RegionDefinition(BaseModel):
+    id: Literal["india", "us", "europe"]
+    currency: Literal["INR", "USD", "EUR"]
+    unit: str
 
 
-class HistoricalResponse(BaseModel):
+class CommodityDefinition(BaseModel):
+    id: Literal["gold", "silver", "crude_oil"]
+
+
+class LivePriceResponse(BaseModel):
     commodity: str
-    rows: int
-    data: list[HistoricalPoint]
+    region: str
+    unit: str
+    currency: str
+    live_price: float
+    source: str
+    timestamp: datetime
 
 
-# --- Region-aware historical response ---
+class LivePricesEnvelope(BaseModel):
+    items: list[LivePriceResponse]
+
 
 class RegionalHistoricalPoint(BaseModel):
     date: date
-    close: float          # price in regional currency/unit
     open: Optional[float] = None
     high: Optional[float] = None
     low: Optional[float] = None
+    close: float
     volume: Optional[float] = None
 
 
@@ -47,6 +58,7 @@ class RegionalHistoricalResponse(BaseModel):
 
 class TrainResponse(BaseModel):
     commodity: str
+    region: str
     best_model: str
     model_version: str
     rmse: float
@@ -62,51 +74,18 @@ class MetricsResponse(BaseModel):
     region: str = "us"
 
 
-# --- Legacy prediction response (backwards compat) ---
-
-class PredictionResponse(BaseModel):
-    commodity: str
-    prediction_date: date
-    predicted_price: float
-    confidence_interval: tuple[float, float]
-    model_used: str
-    model_accuracy_rmse: float
-    horizon_days: int = Field(default=1)
-
-
-# --- Regional multi-step prediction response ---
-
-class ForecastPoint(BaseModel):
-    date: date
-    price: float
-
-
 class RegionalPredictionResponse(BaseModel):
     commodity: str
     region: str
     unit: str
     currency: str
-    predictions: list[ForecastPoint]
+    forecast_horizon: date = Field(default=date(2026, 12, 31))
+    point_forecast: float
     confidence_interval: tuple[float, float]
+    scenario: Literal["bull", "base", "bear"]
+    scenario_forecasts: dict[str, float]
     model_used: str
 
-
-# --- Regional comparison ---
-
-class RegionPrice(BaseModel):
-    region: str
-    currency: str
-    unit: str
-    price: float
-    formatted: str
-
-
-class RegionalComparisonResponse(BaseModel):
-    commodity: str
-    regions: list[RegionPrice]
-
-
-# --- Retrain all ---
 
 class RetrainAllResponse(BaseModel):
     results: list[TrainResponse]

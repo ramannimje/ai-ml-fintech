@@ -1,37 +1,71 @@
-"""
-FX rate fetching with in-memory TTL cache.
-
-Uses open.er-api.com (free, no API key required).
-Falls back to hardcoded rates if the API is unreachable.
-"""
+"""FX rate fetching with in-memory TTL cache and graceful failover."""
 from __future__ import annotations
 
 import logging
 import time
+import xml.etree.ElementTree as ET
 from typing import Any
 
 import httpx
-
-from app.services.price_conversion import FALLBACK_FX
 
 logger = logging.getLogger(__name__)
 
 _FX_CACHE: dict[str, Any] = {}
 _HIST_CACHE: dict[str, Any] = {}
 
-FX_TTL_SECONDS = 3600       # 1 hour
+FX_TTL_SECONDS = 60         # 60 seconds
 HIST_TTL_SECONDS = 600      # 10 minutes
 
-FX_API_URL = "https://open.er-api.com/v6/latest/USD"
+ECB_FX_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
+FALLBACK_FX_URL = "https://open.er-api.com/v6/latest/USD"
+
+
+def _from_ecb_xml(xml_payload: str) -> dict[str, float]:
+    """
+    Parse ECB XML (EUR base) into USD base rates.
+    Returns mapping like {'USD': 1.0, 'EUR': 0.92, 'INR': 83.5}.
+    """
+    root = ET.fromstring(xml_payload)
+    cube_nodes = root.findall(".//{*}Cube[@currency][@rate]")
+    eur_based: dict[str, float] = {"EUR": 1.0}
+    for cube in cube_nodes:
+        currency = cube.attrib.get("currency")
+        rate = cube.attrib.get("rate")
+        if not currency or not rate:
+            continue
+        eur_based[currency] = float(rate)
+
+    usd_per_eur = eur_based.get("USD")
+    if not usd_per_eur:
+        raise ValueError("ECB payload missing USD rate")
+
+    usd_base: dict[str, float] = {"USD": 1.0}
+    for currency, eur_rate in eur_based.items():
+        usd_base[currency] = eur_rate / usd_per_eur
+    return usd_base
+
+
+def _fetch_ecb_rates() -> dict[str, float]:
+    with httpx.Client(timeout=5.0) as client:
+        resp = client.get(ECB_FX_URL)
+        resp.raise_for_status()
+        return _from_ecb_xml(resp.text)
+
+
+def _fetch_fallback_rates() -> dict[str, float]:
+    with httpx.Client(timeout=5.0) as client:
+        resp = client.get(FALLBACK_FX_URL)
+        resp.raise_for_status()
+        data = resp.json()
+    rates: dict[str, float] = data.get("rates", {})
+    rates["USD"] = 1.0
+    return rates
 
 
 def get_fx_rates() -> dict[str, float]:
     """
     Return current FX rates relative to USD.
-    Cached for 1 hour; falls back to FALLBACK_FX on error.
-
-    Returns:
-        Dict like {'USD': 1.0, 'INR': 83.5, 'EUR': 0.92, ...}
+    Order: cached -> ECB -> fallback API -> stale cache.
     """
     now = time.monotonic()
     cached = _FX_CACHE.get("rates")
@@ -39,19 +73,25 @@ def get_fx_rates() -> dict[str, float]:
         return cached["data"]
 
     try:
-        with httpx.Client(timeout=5.0) as client:
-            resp = client.get(FX_API_URL)
-            resp.raise_for_status()
-            data = resp.json()
-            rates: dict[str, float] = data.get("rates", {})
-            # Ensure USD is always present
-            rates["USD"] = 1.0
-            _FX_CACHE["rates"] = {"data": rates, "ts": now}
-            logger.info("FX rates refreshed from %s", FX_API_URL)
-            return rates
+        rates = _fetch_ecb_rates()
+        _FX_CACHE["rates"] = {"data": rates, "ts": now}
+        logger.info("FX rates refreshed from ECB")
+        return rates
     except Exception as exc:
-        logger.warning("FX rate fetch failed (%s), using fallback rates", exc)
-        return dict(FALLBACK_FX)
+        logger.warning("FX primary source failed (ECB): %s", exc)
+
+    try:
+        rates = _fetch_fallback_rates()
+        _FX_CACHE["rates"] = {"data": rates, "ts": now}
+        logger.info("FX rates refreshed from fallback API")
+        return rates
+    except Exception as exc:
+        logger.warning("FX fallback source failed: %s", exc)
+
+    if cached:
+        logger.warning("Serving stale FX rates from cache due to source failures")
+        return cached["data"]
+    raise RuntimeError("Unable to fetch FX rates and no cached rates available")
 
 
 def get_cached_historical(key: str) -> Any | None:
