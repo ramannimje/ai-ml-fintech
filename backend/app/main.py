@@ -9,7 +9,7 @@ from app.db.session import engine
 settings = get_settings()
 setup_logging()
 app = FastAPI(title=settings.app_name)
-app.include_router(router)
+app.include_router(router, prefix="/api")
 
 
 @app.on_event("startup")

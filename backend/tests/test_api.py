@@ -15,4 +15,4 @@ def test_health() -> None:
 def test_commodities() -> None:
     response = client.get("/api/commodities")
     assert response.status_code == 200
-    assert set(response.json()["commodities"]) == {"gold", "silver", "crude_oil"}
+    assert set(response.json()["commodities"]) == {"gold", "silver", "crude_oil", "natural_gas"}

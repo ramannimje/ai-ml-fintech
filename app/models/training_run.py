@@ -11,6 +11,7 @@ class TrainingRun(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     commodity: Mapped[str] = mapped_column(String(32), index=True)
+    region: Mapped[str] = mapped_column(String(16), default="us", index=True)
     model_name: Mapped[str] = mapped_column(String(64), index=True)
     model_version: Mapped[str] = mapped_column(String(64))
     rmse: Mapped[float] = mapped_column(Float)
