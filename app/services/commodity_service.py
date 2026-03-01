@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+import logging
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -42,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 class CommodityService:
     # Simple in-memory cache for loaded models per (commodity, region)
-    _model_cache: dict[tuple[str, str], tuple[any, dict]] = {}
+    _model_cache: dict[tuple[str, str], tuple[Any, dict]] = {}
     def __init__(self) -> None:
         self.settings = get_settings()
         self.fetcher = MarketDataFetcher(cache_dir=self.settings.data_cache_dir)
@@ -68,12 +70,8 @@ class CommodityService:
         return out
 
     def _to_regional_price(self, usd_per_troy_oz: float, region: str, fx: dict[str, float]) -> float:
-        # Apply regional premium for Indian gold market (24k 10g) to reflect local pricing
-        price = convert_price(troy_oz_to_grams(usd_per_troy_oz), region, fx)
-        if region == "india":
-            # Approximate premium factor based on market data (e.g., ~3.6x higher than spot)
-            price *= 6.0
-        return price
+        # Convert from canonical USD/troy_oz feed into region unit/currency without extra multipliers.
+        return convert_price(troy_oz_to_grams(usd_per_troy_oz), region, fx)
 
     def _enrich_features(self, raw: pd.DataFrame, region: str) -> pd.DataFrame:
         feat = add_features(raw)

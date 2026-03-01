@@ -12,6 +12,7 @@ from app.services.price_conversion import (
     grams_to_troy_oz,
     troy_oz_to_grams,
 )
+from app.services.commodity_service import CommodityService
 
 MOCK_FX = {"USD": 1.0, "INR": 84.0, "EUR": 0.93}
 
@@ -116,3 +117,21 @@ class TestAllRegionsPrice:
         """India INR price should be numerically much larger than USD/oz."""
         result = all_regions_price(65.0, MOCK_FX)
         assert result["india"]["price"] > result["us"]["price"]
+
+
+class TestServiceRegionalConversion:
+    def test_service_regional_conversion_has_no_hidden_multiplier(self) -> None:
+        service = CommodityService()
+        usd_per_troy_oz = 5232.0
+
+        india_price = service._to_regional_price(usd_per_troy_oz, "india", MOCK_FX)
+        us_price = service._to_regional_price(usd_per_troy_oz, "us", MOCK_FX)
+        europe_price = service._to_regional_price(usd_per_troy_oz, "europe", MOCK_FX)
+
+        expected_india = grams_to_10g(troy_oz_to_grams(usd_per_troy_oz) * MOCK_FX["INR"])
+        expected_us = usd_per_troy_oz
+        expected_europe = troy_oz_to_grams(usd_per_troy_oz) * MOCK_FX["EUR"]
+
+        assert india_price == pytest.approx(expected_india)
+        assert us_price == pytest.approx(expected_us)
+        assert europe_price == pytest.approx(expected_europe)

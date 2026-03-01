@@ -18,6 +18,7 @@ HIST_TTL_SECONDS = 600      # 10 minutes
 
 ECB_FX_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
 FALLBACK_FX_URL = "https://open.er-api.com/v6/latest/USD"
+STATIC_FALLBACK_FX: dict[str, float] = {"USD": 1.0, "INR": 83.5, "EUR": 0.92}
 
 
 def _from_ecb_xml(xml_payload: str) -> dict[str, float]:
@@ -91,7 +92,11 @@ def get_fx_rates() -> dict[str, float]:
     if cached:
         logger.warning("Serving stale FX rates from cache due to source failures")
         return cached["data"]
-    raise RuntimeError("Unable to fetch FX rates and no cached rates available")
+
+    # Final resilience guard: serve static defaults so pricing endpoints remain available.
+    logger.warning("Serving static fallback FX rates due to source failures and empty cache")
+    _FX_CACHE["rates"] = {"data": STATIC_FALLBACK_FX, "ts": now}
+    return STATIC_FALLBACK_FX
 
 
 def get_cached_historical(key: str) -> Any | None:
