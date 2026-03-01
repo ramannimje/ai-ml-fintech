@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import logging
+import httpx
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -142,42 +142,39 @@ class CommodityService:
         now = datetime.now(timezone.utc)
         out: list[LivePriceResponse] = []
 
-        # Only use Metals-API if a real key is configured (ignore placeholder values)
-        api_key = self.settings.metals_api_key if hasattr(self.settings, 'metals_api_key') else None
-        if api_key and not api_key.upper().startswith('YOUR_'):
-            # Fetch from Metals-API.com
-            import httpx
-            url = f"https://metals-api.com/api/latest?access_key={api_key}&base=USD&symbols=XAU,XAG,CL"
-            try:
-                resp = httpx.get(url, timeout=10.0)
-                resp.raise_for_status()
-                data = resp.json()
-                rates = data.get('rates', {})
-                # rates are in USD per unit (e.g., 1 XAU = rate USD)
-                # Convert to region specific units
-                commodity_map = {'gold': 'XAU', 'silver': 'XAG', 'crude_oil': 'CL'}
-                for commodity, symbol in commodity_map.items():
-                    usd_price_per_oz = rates.get(symbol)
-                    if usd_price_per_oz is None:
-                        continue
-                    # Convert from USD per troy ounce to regional price
-                    for reg in regions:
-                        price = self._to_regional_price(usd_price_per_oz, reg, fx)
-                        out.append(
-                            LivePriceResponse(
-                                commodity=commodity,
-                                region=reg,
-                                unit=REGION_UNITS[reg],
-                                currency=REGION_CURRENCY[reg],
-                                live_price=round(price, 4),
-                                source='metals-api.com',
-                                timestamp=now,
-                            )
+        # Try free Metals.live API (no API key required)
+        try:
+            resp = httpx.get("https://api.metals.live/v1/spot", timeout=10.0)
+            resp.raise_for_status()
+            raw_data = resp.json()
+            # raw_data is a list of dicts e.g. [{"gold":3120.5,"silver":31.2,...}]
+            rates: dict[str, float] = {}
+            for entry in raw_data:
+                if isinstance(entry, dict):
+                    rates.update(entry)
+        except Exception as exc:
+            logger.warning("Metals.live API fetch failed: %s", exc)
+            rates = {}
+        # Process rates for known commodities
+        for commodity in self.commodities:
+            price_usd = rates.get(commodity)
+            if price_usd is not None:
+                for reg in regions:
+                    price = self._to_regional_price(price_usd, reg, fx)
+                    out.append(
+                        LivePriceResponse(
+                            commodity=commodity,
+                            region=reg,
+                            unit=REGION_UNITS[reg],
+                            currency=REGION_CURRENCY[reg],
+                            live_price=round(price, 4),
+                            source='metals.live',
+                            timestamp=now,
                         )
-                return out
-            except Exception as exc:
-                logger.warning("Metals-API fetch failed: %s", exc)
-                # fall back to yfinance below
+                    )
+        # If we got results from free API, return them (skip yfinance)
+        if out:
+            return out
         # Fallback to yfinance (existing logic)
         for commodity in self.commodities:
             try:
