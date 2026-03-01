@@ -9,10 +9,11 @@ class Settings(BaseSettings):
     data_cache_dir: str = "ml/cache"
     artifact_dir: str = "ml/artifacts"
     forecast_horizons: tuple[int, ...] = (1, 7, 30)
-    min_training_rows: int = 180
+    metals_api_key: str | None = None
     fx_api_url: str = "https://open.er-api.com/v6/latest/USD"
     default_region: str = "us"
-    supported_regions: tuple[str, ...] = ("india", "us", "europe")
+    metals_api_key: str = "YOUR_METALS_API_KEY_HERE"
+
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
