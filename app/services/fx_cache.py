@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 _FX_CACHE: dict[str, Any] = {}
 _HIST_CACHE: dict[str, Any] = {}
 
-FX_TTL_SECONDS = 60         # 60 seconds
+FX_TTL_SECONDS = 0         # 60 seconds
 HIST_TTL_SECONDS = 600      # 10 minutes
 
 ECB_FX_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
