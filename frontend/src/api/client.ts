@@ -2,6 +2,7 @@ import axios from 'axios';
 import { z } from 'zod';
 import type {
   AlertCommodity,
+  AlertDirection,
   AlertEvaluation,
   AlertHistoryItem,
   AlertHistoryFilters,
@@ -17,6 +18,7 @@ import type {
   RegionDefinition,
   TrainResponse,
   UserProfile,
+  WhatsAppAlert,
 } from '../types/api';
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || '/api';
@@ -106,6 +108,7 @@ const trainSchema = z.object({
 
 const alertCommoditySchema = z.enum(['gold', 'silver', 'crude_oil', 'natural_gas', 'copper']);
 const alertTypeSchema = z.enum(['above', 'below', 'pct_change_24h', 'spike', 'drop']);
+const alertDirectionSchema = z.enum(['above', 'below']);
 
 const priceAlertSchema = z.object({
   id: z.number(),
@@ -138,6 +141,20 @@ const alertHistorySchema = z.object({
   delivery_error: z.string().nullable().optional(),
   delivery_attempts: z.number(),
   triggered_at: z.string(),
+});
+
+const whatsappAlertSchema = z.object({
+  id: z.number(),
+  user_id: z.string(),
+  commodity: alertCommoditySchema,
+  region: z.enum(['india', 'us', 'europe']),
+  target_price: z.number(),
+  direction: alertDirectionSchema,
+  whatsapp_number: z.string(),
+  is_active: z.boolean(),
+  is_triggered: z.boolean(),
+  created_at: z.string(),
+  triggered_at: z.string().nullable().optional(),
 });
 
 const alertEvaluationSchema = z.object({
@@ -210,6 +227,14 @@ export const client = {
     email_notifications_enabled?: boolean;
   }) =>
     priceAlertSchema.parse((await api.post('/alerts', input)).data) as PriceAlert,
+  createWhatsAppAlert: async (input: {
+    commodity: AlertCommodity;
+    region: Region;
+    target_price: number;
+    direction: AlertDirection;
+    whatsapp_number: string;
+  }) =>
+    whatsappAlertSchema.parse((await api.post('/alerts/whatsapp', input)).data) as WhatsAppAlert,
   listAlerts: async () => z.array(priceAlertSchema).parse((await api.get('/alerts')).data) as PriceAlert[],
   updateAlert: async (
     alertId: number,

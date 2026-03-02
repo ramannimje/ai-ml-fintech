@@ -11,6 +11,7 @@ from app.db.schema_guard import ensure_alerts_schema, ensure_training_runs_schem
 from app.db.session import engine
 # Import all models so Base.metadata includes them
 from app.models import alert_history, price_alert, price_record, training_run, user_profile  # noqa: F401
+from app.workers.whatsapp_alert_worker import whatsapp_alert_worker
 
 settings = get_settings()
 setup_logging()
@@ -44,3 +45,11 @@ async def on_startup() -> None:
         await conn.run_sync(Base.metadata.create_all)
         await ensure_training_runs_schema(conn)
         await ensure_alerts_schema(conn)
+    if settings.whatsapp_worker_enabled:
+        whatsapp_alert_worker.start()
+
+
+@app.on_event("shutdown")
+async def on_shutdown() -> None:
+    if settings.whatsapp_worker_enabled:
+        await whatsapp_alert_worker.stop()

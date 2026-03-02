@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { AlertCommodity, AlertType, Region } from '../types/api';
+import type { AlertCommodity, AlertDirection, AlertType, Region } from '../types/api';
 
 const alertCommodities: AlertCommodity[] = ['gold', 'silver', 'crude_oil', 'natural_gas', 'copper'];
 const alertTypes: AlertType[] = ['above', 'below', 'pct_change_24h', 'spike', 'drop'];
@@ -9,6 +9,7 @@ interface AlertWizardProps {
   defaultCooldownMinutes: number;
   defaultEmailEnabled: boolean;
   onCreate: (input: {
+    channel: 'email' | 'whatsapp';
     commodity: AlertCommodity;
     region: Region;
     alert_type: AlertType;
@@ -16,6 +17,8 @@ interface AlertWizardProps {
     enabled: boolean;
     cooldown_minutes: number;
     email_notifications_enabled: boolean;
+    whatsapp_number?: string;
+    direction?: AlertDirection;
   }) => void;
   onValidationError?: (message: string) => void;
   pending?: boolean;
@@ -32,6 +35,8 @@ export function AlertWizard({
   const [commodity, setCommodity] = useState<AlertCommodity>('gold');
   const [alertType, setAlertType] = useState<AlertType>('above');
   const [threshold, setThreshold] = useState<string>('1');
+  const [channel, setChannel] = useState<'email' | 'whatsapp'>('email');
+  const [whatsappNumber, setWhatsappNumber] = useState<string>('');
   const [cooldownMinutes, setCooldownMinutes] = useState<string>(String(defaultCooldownMinutes));
   const [enabled, setEnabled] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(defaultEmailEnabled);
@@ -47,7 +52,22 @@ export function AlertWizard({
       onValidationError?.('Cooldown must be at least 5 minutes.');
       return;
     }
+    if (channel === 'whatsapp') {
+      if (!whatsappNumber.trim()) {
+        onValidationError?.('WhatsApp number is required for WhatsApp alerts.');
+        return;
+      }
+      if (!whatsappNumber.trim().startsWith('+')) {
+        onValidationError?.('WhatsApp number must be in E.164 format (example: +15551234567).');
+        return;
+      }
+      if (!(alertType === 'above' || alertType === 'below')) {
+        onValidationError?.('WhatsApp alerts currently support only above/below conditions.');
+        return;
+      }
+    }
     onCreate({
+      channel,
       commodity,
       region,
       alert_type: alertType,
@@ -55,6 +75,8 @@ export function AlertWizard({
       enabled,
       cooldown_minutes: parsedCooldown,
       email_notifications_enabled: emailEnabled,
+      whatsapp_number: channel === 'whatsapp' ? whatsappNumber.trim() : undefined,
+      direction: channel === 'whatsapp' ? (alertType as AlertDirection) : undefined,
     });
   };
 
@@ -65,6 +87,14 @@ export function AlertWizard({
       </select>
       <select value={alertType} onChange={(e) => setAlertType(e.target.value as AlertType)} className="ui-input rounded px-3 py-2 text-sm">
         {alertTypes.map((item) => <option key={item} value={item}>{item}</option>)}
+      </select>
+      <select
+        value={channel}
+        onChange={(e) => setChannel(e.target.value as 'email' | 'whatsapp')}
+        className="ui-input rounded px-3 py-2 text-sm"
+      >
+        <option value="email">Email</option>
+        <option value="whatsapp">WhatsApp</option>
       </select>
       <input
         value={threshold}
@@ -82,14 +112,26 @@ export function AlertWizard({
         className="ui-input rounded px-3 py-2 text-sm"
         placeholder="Cooldown (min)"
       />
+      {channel === 'whatsapp' ? (
+        <input
+          value={whatsappNumber}
+          onChange={(e) => setWhatsappNumber(e.target.value)}
+          className="ui-input rounded px-3 py-2 text-sm sm:col-span-2"
+          placeholder="WhatsApp number (+15551234567)"
+        />
+      ) : null}
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
         Alert enabled
       </label>
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={emailEnabled} onChange={(e) => setEmailEnabled(e.target.checked)} />
-        Email notifications
-      </label>
+      {channel === 'email' ? (
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={emailEnabled} onChange={(e) => setEmailEnabled(e.target.checked)} />
+          Email notifications
+        </label>
+      ) : (
+        <div className="text-muted text-xs sm:self-center">WhatsApp alerts are sent to the number above.</div>
+      )}
       <button
         type="button"
         onClick={submit}

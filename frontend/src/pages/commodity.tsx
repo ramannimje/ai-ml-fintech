@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { client } from '../api/client';
-import type { AlertCommodity, AlertType, Commodity, Region } from '../types/api';
+import type { AlertCommodity, AlertDirection, AlertType, Commodity, Region } from '../types/api';
 import { CommodityChart } from '../components/chart';
 
 const ranges: Array<'1m' | '6m' | '1y' | '5y' | 'max'> = ['1m', '6m', '1y', '5y', 'max'];
@@ -18,6 +18,8 @@ export function CommodityPage() {
   const [horizon, setHorizon] = useState(30);
   const [alertCommodity, setAlertCommodity] = useState<AlertCommodity>(commodity);
   const [alertType, setAlertType] = useState<AlertType>('above');
+  const [alertChannel, setAlertChannel] = useState<'email' | 'whatsapp'>('email');
+  const [whatsappNumber, setWhatsappNumber] = useState('');
   const [threshold, setThreshold] = useState('175000');
   const [alertFeedback, setAlertFeedback] = useState('');
   const queryClient = useQueryClient();
@@ -57,12 +59,30 @@ export function CommodityPage() {
       if (!Number.isFinite(parsedThreshold) || parsedThreshold <= 0) {
         throw new Error('Threshold must be greater than 0.');
       }
+      if (alertChannel === 'whatsapp') {
+        if (!whatsappNumber.trim()) {
+          throw new Error('WhatsApp number is required.');
+        }
+        if (!whatsappNumber.trim().startsWith('+')) {
+          throw new Error('WhatsApp number must be in E.164 format (example: +15551234567).');
+        }
+        if (!(alertType === 'above' || alertType === 'below')) {
+          throw new Error('WhatsApp alerts currently support only above/below conditions.');
+        }
+        return client.createWhatsAppAlert({
+          commodity: alertCommodity,
+          region,
+          target_price: parsedThreshold,
+          direction: alertType as AlertDirection,
+          whatsapp_number: whatsappNumber.trim(),
+        }).then(() => undefined);
+      }
       return client.createAlert({
         commodity: alertCommodity,
         region,
         alert_type: alertType,
         threshold: parsedThreshold,
-      });
+      }).then(() => undefined);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['alerts'] });
@@ -186,7 +206,7 @@ export function CommodityPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="surface-card rounded-xl p-4">
           <h2 className="font-medium">Smart Price Alerts</h2>
-          <p className="text-muted mt-1 text-sm">Create cross-above/below, 24h % move, spike or drop alerts with email notifications.</p>
+          <p className="text-muted mt-1 text-sm">Create email alerts (all types) or WhatsApp alerts (above/below with mobile number).</p>
           {!!alertFeedback && (
             <div className="mt-2 rounded border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
               {alertFeedback}
@@ -199,6 +219,14 @@ export function CommodityPage() {
             <select value={alertType} onChange={(e) => setAlertType(e.target.value as AlertType)} className="ui-input rounded px-3 py-2 text-sm">
               {alertTypes.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
+            <select
+              value={alertChannel}
+              onChange={(e) => setAlertChannel(e.target.value as 'email' | 'whatsapp')}
+              className="ui-input rounded px-3 py-2 text-sm"
+            >
+              <option value="email">Email</option>
+              <option value="whatsapp">WhatsApp</option>
+            </select>
             <input
               value={threshold}
               onChange={(e) => setThreshold(e.target.value)}
@@ -207,6 +235,14 @@ export function CommodityPage() {
               className="ui-input rounded px-3 py-2 text-sm"
               placeholder="Threshold"
             />
+            {alertChannel === 'whatsapp' ? (
+              <input
+                value={whatsappNumber}
+                onChange={(e) => setWhatsappNumber(e.target.value)}
+                className="ui-input rounded px-3 py-2 text-sm sm:col-span-2"
+                placeholder="WhatsApp number (+15551234567)"
+              />
+            ) : null}
             <button
               type="button"
               onClick={() => createAlert.mutate()}

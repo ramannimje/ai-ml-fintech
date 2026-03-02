@@ -27,6 +27,8 @@ from app.schemas.responses import (
     TrainResponse,
     UserProfileResponse,
     UserProfileUpdateRequest,
+    WhatsAppAlertCreateRequest,
+    WhatsAppAlertResponse,
 )
 from app.services.alert_service import AlertService
 from app.services.commodity_service import CommodityService
@@ -220,6 +222,25 @@ async def create_alert(
         raise HTTPException(
             status_code=400,
             detail=_err("ALERT_CREATE_FAILED", str(exc)),
+        ) from exc
+
+
+@router.post("/alerts/whatsapp", response_model=WhatsAppAlertResponse, responses={400: {"model": ErrorResponse}})
+async def create_whatsapp_alert(
+    payload: WhatsAppAlertCreateRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+) -> WhatsAppAlertResponse:
+    try:
+        return await alert_service.create_whatsapp_alert(
+            session=session,
+            user_id=current_user.get("sub", "unknown"),
+            payload=payload,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=_err("WHATSAPP_ALERT_CREATE_FAILED", str(exc)),
         ) from exc
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, select
@@ -14,6 +15,8 @@ from app.schemas.responses import (
     AlertHistoryResponse,
     AlertUpdateRequest,
     PriceAlertResponse,
+    WhatsAppAlertCreateRequest,
+    WhatsAppAlertResponse,
 )
 from app.services.market_quote_service import ALERT_COMMODITY_UNITS
 from app.services.email_service import EmailService
@@ -41,7 +44,7 @@ class AlertService:
         payload: AlertCreateRequest,
     ) -> PriceAlertResponse:
         try:
-            quote = self.market.fetch_quote(payload.commodity, payload.region)
+            quote = await asyncio.to_thread(self.market.fetch_quote, payload.commodity, payload.region)
             currency = quote.currency
             unit = quote.unit
         except Exception:
@@ -53,14 +56,18 @@ class AlertService:
         default_email_enabled = profile.email_notifications_enabled if profile else True
         alert = PriceAlert(
             user_sub=user_sub,
+            user_id=user_sub,
             user_email=user_email,
             commodity=payload.commodity,
             region=payload.region,
             currency=currency,
             unit=unit,
             alert_type=payload.alert_type,
+            direction=payload.alert_type if payload.alert_type in {"above", "below"} else None,
             threshold=payload.threshold,
+            target_price=payload.threshold,
             enabled=payload.enabled,
+            is_active=payload.enabled,
             cooldown_minutes=payload.cooldown_minutes or default_cooldown,
             email_notifications_enabled=payload.email_notifications_enabled and default_email_enabled,
         )
@@ -84,8 +91,10 @@ class AlertService:
             raise ValueError("Alert not found")
         if payload.threshold is not None:
             alert.threshold = payload.threshold
+            alert.target_price = payload.threshold
         if payload.enabled is not None:
             alert.enabled = payload.enabled
+            alert.is_active = payload.enabled
         if payload.cooldown_minutes is not None:
             alert.cooldown_minutes = payload.cooldown_minutes
         if payload.email_notifications_enabled is not None:
@@ -99,6 +108,43 @@ class AlertService:
             delete(PriceAlert).where(PriceAlert.user_sub == user_sub).where(PriceAlert.id == alert_id)
         )
         await session.commit()
+
+    async def create_whatsapp_alert(
+        self,
+        session: AsyncSession,
+        user_id: str,
+        payload: WhatsAppAlertCreateRequest,
+    ) -> WhatsAppAlertResponse:
+        try:
+            quote = await asyncio.to_thread(self.market.fetch_quote, payload.commodity, payload.region)
+            currency = quote.currency
+            unit = quote.unit
+        except Exception:
+            currency = REGION_CURRENCY[payload.region]
+            unit = ALERT_COMMODITY_UNITS[payload.commodity][payload.region]
+        alert = PriceAlert(
+            user_sub=user_id,
+            user_id=user_id,
+            user_email=None,
+            commodity=payload.commodity,
+            region=payload.region,
+            currency=currency,
+            unit=unit,
+            alert_type=payload.direction,
+            direction=payload.direction,
+            threshold=payload.target_price,
+            target_price=payload.target_price,
+            enabled=True,
+            is_active=True,
+            is_triggered=False,
+            cooldown_minutes=30,
+            email_notifications_enabled=False,
+            whatsapp_number=payload.whatsapp_number,
+        )
+        session.add(alert)
+        await session.commit()
+        await session.refresh(alert)
+        return self._to_whatsapp_alert_response(alert)
 
     async def alert_history(
         self,
@@ -147,7 +193,7 @@ class AlertService:
         events: list[AlertHistoryResponse] = []
         for alert in alerts:
             try:
-                quote = self.market.fetch_quote(alert.commodity, alert.region)
+                quote = await asyncio.to_thread(self.market.fetch_quote, alert.commodity, alert.region)
             except Exception:
                 # Skip evaluation for this alert when quote provider is unavailable.
                 continue
@@ -244,6 +290,25 @@ class AlertService:
             delivery_provider=row.delivery_provider,
             delivery_error=row.delivery_error,
             delivery_attempts=row.delivery_attempts,
+            triggered_at=row.triggered_at,
+        )
+
+    def _to_whatsapp_alert_response(self, row: PriceAlert) -> WhatsAppAlertResponse:
+        if row.direction not in {"above", "below"}:
+            raise ValueError("Invalid alert direction for WhatsApp alert")
+        if not row.whatsapp_number:
+            raise ValueError("WhatsApp number missing for WhatsApp alert")
+        return WhatsAppAlertResponse(
+            id=row.id,
+            user_id=row.user_id or row.user_sub,
+            commodity=row.commodity,
+            region=row.region,
+            target_price=row.target_price or row.threshold,
+            direction=row.direction,
+            whatsapp_number=row.whatsapp_number,
+            is_active=row.is_active,
+            is_triggered=row.is_triggered,
+            created_at=row.created_at,
             triggered_at=row.triggered_at,
         )
 

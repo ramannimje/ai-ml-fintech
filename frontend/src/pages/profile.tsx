@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { client } from '../api/client';
-import type { AlertCommodity, AlertType, Region } from '../types/api';
+import type { AlertCommodity, AlertDirection, AlertType, Region } from '../types/api';
 import { AlertWizard } from '../components/alert-wizard';
 
 const regions: Region[] = ['india', 'us', 'europe'];
@@ -39,6 +39,7 @@ export function ProfilePage() {
 
   const createAlert = useMutation({
     mutationFn: (input: {
+      channel: 'email' | 'whatsapp';
       commodity: AlertCommodity;
       region: Region;
       alert_type: AlertType;
@@ -46,7 +47,26 @@ export function ProfilePage() {
       enabled: boolean;
       cooldown_minutes: number;
       email_notifications_enabled: boolean;
-    }) => client.createAlert(input),
+      whatsapp_number?: string;
+      direction?: AlertDirection;
+    }) =>
+      input.channel === 'whatsapp'
+        ? client.createWhatsAppAlert({
+            commodity: input.commodity,
+            region: input.region,
+            target_price: input.threshold,
+            direction: input.direction as AlertDirection,
+            whatsapp_number: input.whatsapp_number as string,
+          }).then(() => undefined)
+        : client.createAlert({
+            commodity: input.commodity,
+            region: input.region,
+            alert_type: input.alert_type,
+            threshold: input.threshold,
+            enabled: input.enabled,
+            cooldown_minutes: input.cooldown_minutes,
+            email_notifications_enabled: input.email_notifications_enabled,
+          }).then(() => undefined),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['alerts'] });
       setFeedback('Alert created successfully.');
@@ -150,7 +170,7 @@ export function ProfilePage() {
             {evaluateAlerts.isPending ? 'Checking...' : 'Run Alert Check'}
           </button>
         </div>
-        <p className="text-muted mt-1 text-sm">Supports above/below, 24h % move, sudden spike/drop, per-alert cooldown and email toggles.</p>
+        <p className="text-muted mt-1 text-sm">Supports email alerts (all types) and WhatsApp alerts (above/below with mobile number).</p>
         <div className="mt-3">
           <AlertWizard
             region={profile.data?.preferred_region ?? 'us'}

@@ -2,6 +2,7 @@ export type Commodity = 'gold' | 'silver' | 'crude_oil';
 export type Region = 'india' | 'us' | 'europe';
 export type AlertCommodity = Commodity | 'natural_gas' | 'copper';
 export type AlertType = 'above' | 'below' | 'pct_change_24h' | 'spike' | 'drop';
+export type AlertDirection = 'above' | 'below';
 
 export interface RegionDefinition {
   id: Region;
@@ -77,6 +78,20 @@ export interface PriceAlert {
   last_triggered_at?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface WhatsAppAlert {
+  id: number;
+  user_id: string;
+  commodity: AlertCommodity;
+  region: Region;
+  target_price: number;
+  direction: AlertDirection;
+  whatsapp_number: string;
+  is_active: boolean;
+  is_triggered: boolean;
+  created_at: string;
+  triggered_at?: string | null;
 }
 
 export interface AlertHistoryItem {

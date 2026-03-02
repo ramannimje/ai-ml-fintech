@@ -146,6 +146,44 @@ async def ensure_alerts_schema(conn: AsyncConnection) -> None:
     ).first()
     if price_alerts_exists:
         columns = await _sqlite_columns(conn, "price_alerts")
+        if "user_id" not in columns:
+            logger.warning("schema_repair: adding missing column price_alerts.user_id")
+            await conn.execute(
+                text("ALTER TABLE price_alerts ADD COLUMN user_id VARCHAR(128) NOT NULL DEFAULT ''")
+            )
+            await conn.execute(text("UPDATE price_alerts SET user_id = user_sub WHERE user_id = ''"))
+        if "target_price" not in columns:
+            logger.warning("schema_repair: adding missing column price_alerts.target_price")
+            await conn.execute(
+                text("ALTER TABLE price_alerts ADD COLUMN target_price FLOAT NOT NULL DEFAULT 0")
+            )
+            await conn.execute(text("UPDATE price_alerts SET target_price = threshold WHERE target_price = 0"))
+        if "direction" not in columns:
+            logger.warning("schema_repair: adding missing column price_alerts.direction")
+            await conn.execute(text("ALTER TABLE price_alerts ADD COLUMN direction VARCHAR(16)"))
+            await conn.execute(
+                text(
+                    "UPDATE price_alerts SET direction = alert_type "
+                    "WHERE direction IS NULL AND alert_type IN ('above','below')"
+                )
+            )
+        if "whatsapp_number" not in columns:
+            logger.warning("schema_repair: adding missing column price_alerts.whatsapp_number")
+            await conn.execute(text("ALTER TABLE price_alerts ADD COLUMN whatsapp_number VARCHAR(32)"))
+        if "is_active" not in columns:
+            logger.warning("schema_repair: adding missing column price_alerts.is_active")
+            await conn.execute(
+                text("ALTER TABLE price_alerts ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1")
+            )
+            await conn.execute(text("UPDATE price_alerts SET is_active = enabled"))
+        if "is_triggered" not in columns:
+            logger.warning("schema_repair: adding missing column price_alerts.is_triggered")
+            await conn.execute(
+                text("ALTER TABLE price_alerts ADD COLUMN is_triggered BOOLEAN NOT NULL DEFAULT 0")
+            )
+        if "triggered_at" not in columns:
+            logger.warning("schema_repair: adding missing column price_alerts.triggered_at")
+            await conn.execute(text("ALTER TABLE price_alerts ADD COLUMN triggered_at DATETIME"))
         if "cooldown_minutes" not in columns:
             logger.warning("schema_repair: adding missing column price_alerts.cooldown_minutes")
             await conn.execute(

@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from typing import Literal, Optional
 from pydantic import BaseModel, Field
+from pydantic import field_validator
 
 
 class HealthResponse(BaseModel):
@@ -155,6 +156,40 @@ class AlertEvaluationResponse(BaseModel):
     checked: int
     triggered: int
     events: list[AlertHistoryResponse]
+
+
+class WhatsAppAlertCreateRequest(BaseModel):
+    commodity: Literal["gold", "silver", "crude_oil", "natural_gas", "copper"]
+    region: Literal["india", "us", "europe"]
+    target_price: float = Field(gt=0)
+    direction: Literal["above", "below"]
+    whatsapp_number: str = Field(min_length=8, max_length=24)
+
+    @field_validator("whatsapp_number")
+    @classmethod
+    def validate_whatsapp_number(cls, value: str) -> str:
+        out = value.strip()
+        if out.startswith("whatsapp:"):
+            out = out.split(":", 1)[1]
+        if not out.startswith("+"):
+            raise ValueError("whatsapp_number must be in E.164 format, e.g. +15551234567")
+        if not out[1:].isdigit():
+            raise ValueError("whatsapp_number must contain digits after '+'")
+        return value.strip()
+
+
+class WhatsAppAlertResponse(BaseModel):
+    id: int
+    user_id: str
+    commodity: str
+    region: str
+    target_price: float
+    direction: Literal["above", "below"]
+    whatsapp_number: str
+    is_active: bool
+    is_triggered: bool
+    created_at: datetime
+    triggered_at: Optional[datetime] = None
 
 
 class NewsHeadline(BaseModel):
