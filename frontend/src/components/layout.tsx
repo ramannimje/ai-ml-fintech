@@ -12,6 +12,7 @@ export function Layout() {
             <NavLink to="/" end>Dashboard</NavLink>
             <NavLink to="/train">Train Models</NavLink>
             <NavLink to="/metrics">Model Metrics</NavLink>
+            <NavLink to="/profile">Profile</NavLink>
             <ThemeToggle />
             <UserMenu />
           </nav>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
+import { Link } from 'react-router-dom';
 
 function initials(name?: string | null, email?: string | null): string {
   const source = (name || email || 'U').trim();
@@ -28,9 +29,9 @@ export function UserMenu() {
       </button>
       {open && (
         <div className="surface-card absolute right-0 z-30 mt-2 w-52 rounded-lg p-2 shadow-lg">
-          <button type="button" className="w-full rounded px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
+          <Link to="/profile" onClick={() => setOpen(false)} className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
             Profile
-          </button>
+          </Link>
           <button type="button" className="w-full rounded px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
             Settings
           </button>

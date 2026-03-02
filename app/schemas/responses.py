@@ -99,3 +99,58 @@ class RegionalPredictionResponse(BaseModel):
 
 class RetrainAllResponse(BaseModel):
     results: list[TrainResponse]
+
+
+class AlertCreateRequest(BaseModel):
+    commodity: Literal["gold", "silver", "crude_oil", "natural_gas", "copper"]
+    region: Literal["india", "us", "europe"]
+    alert_type: Literal["above", "below", "pct_change_24h", "spike", "drop"]
+    threshold: float = Field(gt=0)
+
+
+class PriceAlertResponse(BaseModel):
+    id: int
+    commodity: str
+    region: str
+    currency: str
+    unit: str
+    alert_type: str
+    threshold: float
+    enabled: bool
+    last_triggered_at: Optional[datetime] = None
+    created_at: datetime
+
+
+class AlertHistoryResponse(BaseModel):
+    id: int
+    alert_id: int
+    commodity: str
+    region: str
+    currency: str
+    alert_type: str
+    threshold: float
+    observed_value: float
+    message: str
+    email_status: str
+    triggered_at: datetime
+
+
+class AlertEvaluationResponse(BaseModel):
+    checked: int
+    triggered: int
+    events: list[AlertHistoryResponse]
+
+
+class NewsHeadline(BaseModel):
+    title: str
+    source: str
+    url: str
+    published_at: datetime
+
+
+class CommodityNewsSummaryResponse(BaseModel):
+    commodity: str
+    sentiment: Literal["bullish", "bearish", "neutral"]
+    summary: str
+    headlines: list[NewsHeadline]
+    updated_at: datetime

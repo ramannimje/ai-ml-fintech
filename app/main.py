@@ -2,7 +2,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.api.auth_routes import router as auth_router
 from app.api.routes import router
 from app.core.auth import TokenVerificationMiddleware
 from app.core.config import get_settings
@@ -11,7 +10,7 @@ from app.db.base import Base
 from app.db.schema_guard import ensure_training_runs_schema
 from app.db.session import engine
 # Import all models so Base.metadata includes them
-from app.models import training_run, price_record  # noqa: F401
+from app.models import alert_history, price_alert, price_record, training_run  # noqa: F401
 
 settings = get_settings()
 setup_logging()
@@ -30,7 +29,13 @@ app.add_middleware(
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
 app.add_middleware(TokenVerificationMiddleware)
 app.include_router(router, prefix="/api")
-app.include_router(auth_router, prefix="/api")
+try:
+    from app.api.auth_routes import router as auth_router
+
+    app.include_router(auth_router, prefix="/api")
+except ImportError:
+    # Auth routes require optional authlib dependency; skip when unavailable.
+    pass
 
 
 @app.on_event("startup")

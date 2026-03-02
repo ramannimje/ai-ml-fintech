@@ -21,6 +21,13 @@ class Settings(BaseSettings):
     auth0_audience: str | None = None
     frontend_url: str = "http://localhost:5173"
     secret_key: str = "change-this-secret-key-32-chars-min"
+    resend_api_key: str | None = None
+    resend_from_email: str = "onboarding@resend.dev"
+    sendgrid_api_key: str | None = None
+    sendgrid_from_email: str = "alerts@example.com"
+    newsapi_key: str | None = None
+    anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-3-5-haiku-latest"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

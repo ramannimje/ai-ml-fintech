@@ -7,10 +7,10 @@ import numpy as np
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
-from app.core.exceptions import CommodityNotSupportedError, TrainingError
-from app.models.training_run import TrainingRun
-from app.schemas.responses import TrainResponse
+from ..core.config import get_settings
+from ..core.exceptions import CommodityNotSupportedError, TrainingError
+from ..models.training_run import TrainingRun
+from ..schemas.responses import TrainResponse
 from ml.data.data_fetcher import COMMODITY_SYMBOLS, MarketDataFetcher
 from ml.features.engineer import add_features, make_supervised
 from ml.inference.artifacts import load_model, save_model

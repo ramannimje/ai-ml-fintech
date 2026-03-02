@@ -8,6 +8,7 @@ import { setAccessTokenGetter } from './api/client';
 import { CommodityPage } from './pages/commodity';
 import { DashboardPage } from './pages/dashboard';
 import { MetricsPage } from './pages/metrics';
+import { ProfilePage } from './pages/profile';
 import { TrainPage } from './pages/train';
 
 const router = createBrowserRouter([
@@ -19,6 +20,7 @@ const router = createBrowserRouter([
       { path: 'commodity/:name', element: <CommodityPage /> },
       { path: 'train', element: <TrainPage /> },
       { path: 'metrics', element: <MetricsPage /> },
+      { path: 'profile', element: <ProfilePage /> },
     ],
   },
 ]);

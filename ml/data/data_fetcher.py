@@ -74,13 +74,16 @@ class MarketDataFetcher:
             fresh = self._normalize_download(fresh)
         else:
             last_dt = cached["Date"].max().to_pydatetime().replace(tzinfo=timezone.utc)
-            start = (last_dt + timedelta(days=1)).date().isoformat()
-            fresh = yf.download(symbol, start=start, auto_adjust=False, progress=False).reset_index()
-            if not fresh.empty:
-                fresh = self._normalize_download(fresh)
-                fresh = pd.concat([cached, fresh], ignore_index=True)
-            else:
+            start_date = (last_dt + timedelta(days=1)).date()
+            if start_date > datetime.now(timezone.utc).date():
                 fresh = cached.copy()
+            else:
+                fresh = yf.download(symbol, start=start_date.isoformat(), auto_adjust=False, progress=False).reset_index()
+                if not fresh.empty:
+                    fresh = self._normalize_download(fresh)
+                    fresh = pd.concat([cached, fresh], ignore_index=True)
+                else:
+                    fresh = cached.copy()
 
         fresh = fresh[["Date", "Open", "High", "Low", "Close", "Volume"]].drop_duplicates("Date")
         fresh = fresh.sort_values("Date").ffill().dropna()

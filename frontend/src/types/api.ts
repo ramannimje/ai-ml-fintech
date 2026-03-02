@@ -1,5 +1,7 @@
 export type Commodity = 'gold' | 'silver' | 'crude_oil';
 export type Region = 'india' | 'us' | 'europe';
+export type AlertCommodity = Commodity | 'natural_gas' | 'copper';
+export type AlertType = 'above' | 'below' | 'pct_change_24h' | 'spike' | 'drop';
 
 export interface RegionDefinition {
   id: Region;
@@ -59,4 +61,52 @@ export interface TrainResponse {
   model_version: string;
   rmse: number;
   mape: number;
+}
+
+export interface PriceAlert {
+  id: number;
+  commodity: AlertCommodity;
+  region: Region;
+  currency: string;
+  unit: string;
+  alert_type: AlertType;
+  threshold: number;
+  enabled: boolean;
+  last_triggered_at?: string | null;
+  created_at: string;
+}
+
+export interface AlertHistoryItem {
+  id: number;
+  alert_id: number;
+  commodity: AlertCommodity;
+  region: Region;
+  currency: string;
+  alert_type: AlertType;
+  threshold: number;
+  observed_value: number;
+  message: string;
+  email_status: string;
+  triggered_at: string;
+}
+
+export interface AlertEvaluation {
+  checked: number;
+  triggered: number;
+  events: AlertHistoryItem[];
+}
+
+export interface NewsHeadline {
+  title: string;
+  source: string;
+  url: string;
+  published_at: string;
+}
+
+export interface CommodityNewsSummary {
+  commodity: AlertCommodity;
+  sentiment: 'bullish' | 'bearish' | 'neutral';
+  summary: string;
+  headlines: NewsHeadline[];
+  updated_at: string;
 }
