@@ -19,6 +19,7 @@ export function CommodityPage() {
   const [alertCommodity, setAlertCommodity] = useState<AlertCommodity>(commodity);
   const [alertType, setAlertType] = useState<AlertType>('above');
   const [threshold, setThreshold] = useState('175000');
+  const [alertFeedback, setAlertFeedback] = useState('');
   const queryClient = useQueryClient();
 
   const historical = useQuery({
@@ -51,15 +52,30 @@ export function CommodityPage() {
   });
 
   const createAlert = useMutation({
-    mutationFn: () =>
-      client.createAlert({
+    mutationFn: () => {
+      const parsedThreshold = Number(threshold);
+      if (!Number.isFinite(parsedThreshold) || parsedThreshold <= 0) {
+        throw new Error('Threshold must be greater than 0.');
+      }
+      return client.createAlert({
         commodity: alertCommodity,
         region,
         alert_type: alertType,
-        threshold: Number(threshold),
-      }),
+        threshold: parsedThreshold,
+      });
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['alerts'] });
+      setAlertFeedback('Alert created successfully.');
+    },
+    onError: (error: any) => {
+      const responseDetail = error?.response?.data?.detail;
+      const detail =
+        responseDetail?.error?.message ||
+        (Array.isArray(responseDetail) ? responseDetail.map((x: any) => x?.msg).filter(Boolean).join(', ') : undefined) ||
+        error?.message ||
+        'Failed to create alert.';
+      setAlertFeedback(detail);
     },
   });
 
@@ -171,6 +187,11 @@ export function CommodityPage() {
         <div className="surface-card rounded-xl p-4">
           <h2 className="font-medium">Smart Price Alerts</h2>
           <p className="text-muted mt-1 text-sm">Create cross-above/below, 24h % move, spike or drop alerts with email notifications.</p>
+          {!!alertFeedback && (
+            <div className="mt-2 rounded border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+              {alertFeedback}
+            </div>
+          )}
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
             <select value={alertCommodity} onChange={(e) => setAlertCommodity(e.target.value as AlertCommodity)} className="ui-input rounded px-3 py-2 text-sm">
               {alertCommodities.map((item) => <option key={item} value={item}>{item.replace('_', ' ')}</option>)}

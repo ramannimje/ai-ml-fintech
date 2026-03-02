@@ -4,6 +4,7 @@ import type {
   AlertCommodity,
   AlertEvaluation,
   AlertHistoryItem,
+  AlertHistoryFilters,
   AlertType,
   CommodityNewsSummary,
   Commodity,
@@ -15,6 +16,7 @@ import type {
   Region,
   RegionDefinition,
   TrainResponse,
+  UserProfile,
 } from '../types/api';
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || '/api';
@@ -114,8 +116,11 @@ const priceAlertSchema = z.object({
   alert_type: alertTypeSchema,
   threshold: z.number(),
   enabled: z.boolean(),
+  cooldown_minutes: z.number(),
+  email_notifications_enabled: z.boolean(),
   last_triggered_at: z.string().nullable().optional(),
   created_at: z.string(),
+  updated_at: z.string(),
 });
 
 const alertHistorySchema = z.object({
@@ -129,6 +134,9 @@ const alertHistorySchema = z.object({
   observed_value: z.number(),
   message: z.string(),
   email_status: z.string(),
+  delivery_provider: z.string().nullable().optional(),
+  delivery_error: z.string().nullable().optional(),
+  delivery_attempts: z.number(),
   triggered_at: z.string(),
 });
 
@@ -153,6 +161,31 @@ const newsSummarySchema = z.object({
   updated_at: z.string(),
 });
 
+const userProfileSchema = z.object({
+  user_sub: z.string(),
+  email: z.string().nullable().optional(),
+  name: z.string().nullable().optional(),
+  picture_url: z.string().nullable().optional(),
+  preferred_region: z.enum(['india', 'us', 'europe']),
+  email_notifications_enabled: z.boolean(),
+  alert_cooldown_minutes: z.number(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+function withQuery(path: string, filters: AlertHistoryFilters = {}): string {
+  const params = new URLSearchParams();
+  if (filters.commodity) params.set('commodity', filters.commodity);
+  if (filters.alert_type) params.set('alert_type', filters.alert_type);
+  if (filters.email_status) params.set('email_status', filters.email_status);
+  if (filters.start_at) params.set('start_at', filters.start_at);
+  if (filters.end_at) params.set('end_at', filters.end_at);
+  if (filters.search) params.set('search', filters.search);
+  if (filters.limit) params.set('limit', String(filters.limit));
+  const q = params.toString();
+  return q ? `${path}?${q}` : path;
+}
+
 export const client = {
   regions: async () => z.array(regionSchema).parse((await api.get('/regions')).data) as RegionDefinition[],
   commodities: async () => z.array(commoditySchema).parse((await api.get('/commodities')).data) as CommodityDefinition[],
@@ -167,12 +200,35 @@ export const client = {
     trainSchema.parse((await api.post(`/train/${commodity}/${region}?horizon=${horizon}`)).data) as TrainResponse,
   predict: async (commodity: Commodity, region: Region, horizon: number) =>
     predictionSchema.parse((await api.get(`/predict/${commodity}/${region}?horizon=${horizon}`)).data) as PredictionResponse,
-  createAlert: async (input: { commodity: AlertCommodity; region: Region; alert_type: AlertType; threshold: number }) =>
+  createAlert: async (input: {
+    commodity: AlertCommodity;
+    region: Region;
+    alert_type: AlertType;
+    threshold: number;
+    enabled?: boolean;
+    cooldown_minutes?: number;
+    email_notifications_enabled?: boolean;
+  }) =>
     priceAlertSchema.parse((await api.post('/alerts', input)).data) as PriceAlert,
   listAlerts: async () => z.array(priceAlertSchema).parse((await api.get('/alerts')).data) as PriceAlert[],
+  updateAlert: async (
+    alertId: number,
+    input: { threshold?: number; enabled?: boolean; cooldown_minutes?: number; email_notifications_enabled?: boolean },
+  ) => priceAlertSchema.parse((await api.patch(`/alerts/${alertId}`, input)).data) as PriceAlert,
   deleteAlert: async (alertId: number) => api.delete(`/alerts/${alertId}`),
   evaluateAlerts: async () => alertEvaluationSchema.parse((await api.post('/alerts/evaluate')).data) as AlertEvaluation,
-  alertHistory: async () => z.array(alertHistorySchema).parse((await api.get('/alerts/history')).data) as AlertHistoryItem[],
+  alertHistory: async (filters: AlertHistoryFilters = {}) =>
+    z.array(alertHistorySchema).parse((await api.get(withQuery('/alerts/history', filters))).data) as AlertHistoryItem[],
+  exportAlertHistory: async (filters: AlertHistoryFilters = {}) =>
+    api.get(withQuery('/alerts/history/export', filters), { responseType: 'blob' }),
   commodityNewsSummary: async (commodity: AlertCommodity) =>
     newsSummarySchema.parse((await api.get(`/news-summary/${commodity}`)).data) as CommodityNewsSummary,
+  profile: async () => userProfileSchema.parse((await api.get('/profile')).data) as UserProfile,
+  updateProfile: async (input: {
+    name?: string;
+    picture_url?: string;
+    preferred_region?: Region;
+    email_notifications_enabled?: boolean;
+    alert_cooldown_minutes?: number;
+  }) => userProfileSchema.parse((await api.put('/profile', input)).data) as UserProfile,
 };

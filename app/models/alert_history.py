@@ -24,4 +24,7 @@ class AlertHistory(Base):
     observed_value: Mapped[float] = mapped_column(Float)
     message: Mapped[str] = mapped_column(String(512))
     email_status: Mapped[str] = mapped_column(String(32), default="skipped")
+    delivery_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    delivery_error: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    delivery_attempts: Mapped[int] = mapped_column(Integer, default=0)
     triggered_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)

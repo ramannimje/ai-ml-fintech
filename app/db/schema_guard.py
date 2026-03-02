@@ -126,3 +126,52 @@ async def ensure_training_runs_schema(conn: AsyncConnection) -> None:
                 )
             )
             logger.info("schema_repair: created unique index uq_training_runs_model_version")
+
+
+async def ensure_alerts_schema(conn: AsyncConnection) -> None:
+    """
+    Validate and repair alert tables for older SQLite files.
+    Fixes:
+    - add missing cooldown/email settings columns on `price_alerts`
+    - add delivery tracking columns on `alert_history`
+    """
+    dialect = conn.engine.dialect.name
+    if dialect != "sqlite":
+        return
+
+    price_alerts_exists = (
+        await conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='price_alerts'")
+        )
+    ).first()
+    if price_alerts_exists:
+        columns = await _sqlite_columns(conn, "price_alerts")
+        if "cooldown_minutes" not in columns:
+            logger.warning("schema_repair: adding missing column price_alerts.cooldown_minutes")
+            await conn.execute(
+                text("ALTER TABLE price_alerts ADD COLUMN cooldown_minutes INTEGER NOT NULL DEFAULT 30")
+            )
+        if "email_notifications_enabled" not in columns:
+            logger.warning("schema_repair: adding missing column price_alerts.email_notifications_enabled")
+            await conn.execute(
+                text("ALTER TABLE price_alerts ADD COLUMN email_notifications_enabled BOOLEAN NOT NULL DEFAULT 1")
+            )
+
+    history_exists = (
+        await conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='alert_history'")
+        )
+    ).first()
+    if history_exists:
+        columns = await _sqlite_columns(conn, "alert_history")
+        if "delivery_provider" not in columns:
+            logger.warning("schema_repair: adding missing column alert_history.delivery_provider")
+            await conn.execute(text("ALTER TABLE alert_history ADD COLUMN delivery_provider VARCHAR(32)"))
+        if "delivery_error" not in columns:
+            logger.warning("schema_repair: adding missing column alert_history.delivery_error")
+            await conn.execute(text("ALTER TABLE alert_history ADD COLUMN delivery_error VARCHAR(512)"))
+        if "delivery_attempts" not in columns:
+            logger.warning("schema_repair: adding missing column alert_history.delivery_attempts")
+            await conn.execute(
+                text("ALTER TABLE alert_history ADD COLUMN delivery_attempts INTEGER NOT NULL DEFAULT 0")
+            )

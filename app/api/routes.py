@@ -1,6 +1,9 @@
+import csv
+import io
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import CommodityNotSupportedError, TrainingError
@@ -10,6 +13,7 @@ from app.schemas.responses import (
     AlertCreateRequest,
     AlertEvaluationResponse,
     AlertHistoryResponse,
+    AlertUpdateRequest,
     CommodityNewsSummaryResponse,
     CommodityDefinition,
     ErrorResponse,
@@ -21,16 +25,20 @@ from app.schemas.responses import (
     RegionalHistoricalResponse,
     RegionalPredictionResponse,
     TrainResponse,
+    UserProfileResponse,
+    UserProfileUpdateRequest,
 )
 from app.services.alert_service import AlertService
 from app.services.commodity_service import CommodityService
 from app.services.market_quote_service import ALERT_COMMODITY_SYMBOLS
 from app.services.news_service import CommodityNewsService
+from app.services.profile_service import ProfileService
 
 router = APIRouter()
 service = CommodityService()
 alert_service = AlertService()
 news_service = CommodityNewsService()
+profile_service = ProfileService()
 
 REGION_CATALOG = [
     RegionDefinition(id="india", currency="INR", unit="10g_24k"),
@@ -215,6 +223,27 @@ async def create_alert(
         ) from exc
 
 
+@router.patch("/alerts/{alert_id}", response_model=PriceAlertResponse, responses={400: {"model": ErrorResponse}})
+async def patch_alert(
+    alert_id: int,
+    payload: AlertUpdateRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+) -> PriceAlertResponse:
+    try:
+        return await alert_service.update_alert(
+            session=session,
+            user_sub=current_user.get("sub", "unknown"),
+            alert_id=alert_id,
+            payload=payload,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=_err("ALERT_UPDATE_FAILED", str(exc), alert_id=str(alert_id)),
+        ) from exc
+
+
 @router.get("/alerts", response_model=list[PriceAlertResponse])
 async def list_alerts(
     session: AsyncSession = Depends(get_session),
@@ -235,10 +264,95 @@ async def delete_alert(
 
 @router.get("/alerts/history", response_model=list[AlertHistoryResponse])
 async def list_alert_history(
+    commodity: str | None = Query(default=None),
+    alert_type: str | None = Query(default=None),
+    email_status: str | None = Query(default=None),
+    start_at: datetime | None = Query(default=None),
+    end_at: datetime | None = Query(default=None),
+    search: str | None = Query(default=None),
+    limit: int = Query(default=200, ge=1, le=1000),
     session: AsyncSession = Depends(get_session),
     current_user: dict = Depends(get_current_user),
 ) -> list[AlertHistoryResponse]:
-    return await alert_service.alert_history(session, current_user.get("sub", "unknown"))
+    return await alert_service.alert_history(
+        session,
+        current_user.get("sub", "unknown"),
+        commodity=commodity,
+        alert_type=alert_type,
+        email_status=email_status,
+        start_at=start_at,
+        end_at=end_at,
+        search=search,
+        limit=limit,
+    )
+
+
+@router.get("/alerts/history/export")
+async def export_alert_history(
+    commodity: str | None = Query(default=None),
+    alert_type: str | None = Query(default=None),
+    email_status: str | None = Query(default=None),
+    start_at: datetime | None = Query(default=None),
+    end_at: datetime | None = Query(default=None),
+    search: str | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+) -> StreamingResponse:
+    rows = await alert_service.alert_history(
+        session,
+        current_user.get("sub", "unknown"),
+        commodity=commodity,
+        alert_type=alert_type,
+        email_status=email_status,
+        start_at=start_at,
+        end_at=end_at,
+        search=search,
+        limit=1000,
+    )
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(
+        [
+            "id",
+            "alert_id",
+            "commodity",
+            "region",
+            "alert_type",
+            "threshold",
+            "observed_value",
+            "message",
+            "email_status",
+            "delivery_provider",
+            "delivery_error",
+            "delivery_attempts",
+            "triggered_at",
+        ]
+    )
+    for row in rows:
+        writer.writerow(
+            [
+                row.id,
+                row.alert_id,
+                row.commodity,
+                row.region,
+                row.alert_type,
+                row.threshold,
+                row.observed_value,
+                row.message,
+                row.email_status,
+                row.delivery_provider or "",
+                row.delivery_error or "",
+                row.delivery_attempts,
+                row.triggered_at.isoformat(),
+            ]
+        )
+    payload = buf.getvalue()
+    filename = f"alert-history-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.csv"
+    return StreamingResponse(
+        iter([payload]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/alerts/evaluate", response_model=AlertEvaluationResponse)
@@ -249,6 +363,35 @@ async def evaluate_alerts(
     return await alert_service.evaluate_user_alerts(
         session=session,
         user_sub=current_user.get("sub", "unknown"),
+        user_email=current_user.get("email"),
+    )
+
+
+@router.get("/profile", response_model=UserProfileResponse)
+async def get_profile(
+    session: AsyncSession = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+) -> UserProfileResponse:
+    return await profile_service.get_or_create(
+        session=session,
+        user_sub=current_user.get("sub", "unknown"),
+        user_email=current_user.get("email"),
+        user_name=current_user.get("name"),
+        picture_url=current_user.get("picture"),
+        user_context=current_user,
+    )
+
+
+@router.put("/profile", response_model=UserProfileResponse)
+async def update_profile(
+    payload: UserProfileUpdateRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+) -> UserProfileResponse:
+    return await profile_service.update(
+        session=session,
+        user_sub=current_user.get("sub", "unknown"),
+        payload=payload,
         user_email=current_user.get("email"),
     )
 

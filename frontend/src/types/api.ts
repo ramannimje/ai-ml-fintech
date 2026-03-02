@@ -72,8 +72,11 @@ export interface PriceAlert {
   alert_type: AlertType;
   threshold: number;
   enabled: boolean;
+  cooldown_minutes: number;
+  email_notifications_enabled: boolean;
   last_triggered_at?: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface AlertHistoryItem {
@@ -87,6 +90,9 @@ export interface AlertHistoryItem {
   observed_value: number;
   message: string;
   email_status: string;
+  delivery_provider?: string | null;
+  delivery_error?: string | null;
+  delivery_attempts: number;
   triggered_at: string;
 }
 
@@ -109,4 +115,26 @@ export interface CommodityNewsSummary {
   summary: string;
   headlines: NewsHeadline[];
   updated_at: string;
+}
+
+export interface UserProfile {
+  user_sub: string;
+  email?: string | null;
+  name?: string | null;
+  picture_url?: string | null;
+  preferred_region: Region;
+  email_notifications_enabled: boolean;
+  alert_cooldown_minutes: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AlertHistoryFilters {
+  commodity?: AlertCommodity;
+  alert_type?: AlertType;
+  email_status?: string;
+  start_at?: string;
+  end_at?: string;
+  search?: string;
+  limit?: number;
 }

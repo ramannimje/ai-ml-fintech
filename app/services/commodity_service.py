@@ -345,44 +345,80 @@ class CommodityService:
     ) -> RegionalPredictionResponse:
         self._validate(commodity)
         region = self._validate_region(region)
-
-        metrics = await self.latest_metrics(session, commodity, region=region)
-        if not metrics:
-            await self.train(session, commodity, region=region, horizon=horizon)
+        try:
             metrics = await self.latest_metrics(session, commodity, region=region)
             if not metrics:
-                raise TrainingError("Training did not persist metadata")
+                await self.train(session, commodity, region=region, horizon=horizon)
+                metrics = await self.latest_metrics(session, commodity, region=region)
+                if not metrics:
+                    raise TrainingError("Training did not persist metadata")
 
-        model, metadata = load_model(Path(metrics.artifact_path))
-        # Use existing model regardless of horizon to improve response speed.
+            model, metadata = load_model(Path(metrics.artifact_path))
+            # Use existing model regardless of horizon to improve response speed.
 
-        raw = self.fetcher.get_historical(commodity, region=region)
-        feat = self._enrich_features(raw, region)
-        x, _ = make_supervised(feat, horizon=max(1, metadata.get("horizon", horizon)))
-        if x.empty:
-            raise TrainingError("Not enough data points to generate prediction features")
-        latest_features = x.tail(1)
-        base_usd_oz = float(model.predict(latest_features)[0])
-        fx = get_fx_rates()
-        point_forecast = self._to_regional_price(base_usd_oz, region, fx)
+            raw = self.fetcher.get_historical(commodity, region=region)
+            feat = self._enrich_features(raw, region)
+            x, _ = make_supervised(feat, horizon=max(1, metadata.get("horizon", horizon)))
+            if x.empty:
+                raise TrainingError("Not enough data points to generate prediction features")
+            latest_features = x.tail(1)
+            base_usd_oz = float(model.predict(latest_features)[0])
+            fx = get_fx_rates()
+            point_forecast = self._to_regional_price(base_usd_oz, region, fx)
 
-        spread_usd_oz = max(0.01 * base_usd_oz, float(metrics.rmse))
-        low = self._to_regional_price(base_usd_oz - spread_usd_oz, region, fx)
-        high = self._to_regional_price(base_usd_oz + spread_usd_oz, region, fx)
-        scenarios = {
-            "bull": round(point_forecast * 1.06, 4),
-            "base": round(point_forecast, 4),
-            "bear": round(point_forecast * 0.94, 4),
-        }
-        return RegionalPredictionResponse(
-            commodity=commodity,
-            region=region,
-            unit=REGION_UNITS[region],
-            currency=REGION_CURRENCY[region],
-            forecast_horizon=(datetime.now(timezone.utc) + timedelta(days=horizon)).date(),
-            point_forecast=round(point_forecast, 4),
-            confidence_interval=(round(low, 4), round(high, 4)),
-            scenario="base",
-            scenario_forecasts=scenarios,
-            model_used=metrics.model_version,
-        )
+            spread_usd_oz = max(0.01 * base_usd_oz, float(metrics.rmse))
+            low = self._to_regional_price(base_usd_oz - spread_usd_oz, region, fx)
+            high = self._to_regional_price(base_usd_oz + spread_usd_oz, region, fx)
+            scenarios = {
+                "bull": round(point_forecast * 1.06, 4),
+                "base": round(point_forecast, 4),
+                "bear": round(point_forecast * 0.94, 4),
+            }
+            return RegionalPredictionResponse(
+                commodity=commodity,
+                region=region,
+                unit=REGION_UNITS[region],
+                currency=REGION_CURRENCY[region],
+                forecast_horizon=(datetime.now(timezone.utc) + timedelta(days=horizon)).date(),
+                point_forecast=round(point_forecast, 4),
+                confidence_interval=(round(low, 4), round(high, 4)),
+                scenario="base",
+                scenario_forecasts=scenarios,
+                model_used=metrics.model_version,
+            )
+        except Exception as exc:
+            # Keep dashboard/predictions available even if model training/artifacts fail.
+            logger.warning(
+                "prediction_fallback commodity=%s region=%s reason=%s",
+                commodity,
+                region,
+                str(exc),
+            )
+            raw = self.fetcher.get_historical(commodity, region=region)
+            if raw.empty:
+                raise TrainingError("No market data available for fallback prediction") from exc
+
+            fx = get_fx_rates()
+            latest_usd_oz = float(raw["Close"].iloc[-1])
+            point_forecast = self._to_regional_price(latest_usd_oz, region, fx)
+            vol = float(raw["Close"].pct_change().tail(30).std() or 0.01)
+            spread = max(abs(point_forecast) * max(0.01, vol), abs(point_forecast) * 0.01)
+            low = max(0.0, point_forecast - spread)
+            high = point_forecast + spread
+            scenarios = {
+                "bull": round(point_forecast * 1.04, 4),
+                "base": round(point_forecast, 4),
+                "bear": round(point_forecast * 0.96, 4),
+            }
+            return RegionalPredictionResponse(
+                commodity=commodity,
+                region=region,
+                unit=REGION_UNITS[region],
+                currency=REGION_CURRENCY[region],
+                forecast_horizon=(datetime.now(timezone.utc) + timedelta(days=horizon)).date(),
+                point_forecast=round(point_forecast, 4),
+                confidence_interval=(round(low, 4), round(high, 4)),
+                scenario="base",
+                scenario_forecasts=scenarios,
+                model_used="naive_fallback_v1",
+            )

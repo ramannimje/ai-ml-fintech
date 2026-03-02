@@ -5,6 +5,7 @@ import logging
 import time
 import xml.etree.ElementTree as ET
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
 
@@ -17,7 +18,7 @@ FX_TTL_SECONDS = 0         # 60 seconds
 HIST_TTL_SECONDS = 600      # 10 minutes
 
 ECB_FX_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
-FALLBACK_FX_URL = "https://open.er-api.com/v6/latest/USD"
+FALLBACK_FX_URL = "https://api.exchangerate.host/latest"
 STATIC_FALLBACK_FX: dict[str, float] = {"USD": 1.0, "INR": 83.5, "EUR": 0.92}
 
 
@@ -55,10 +56,11 @@ def _fetch_ecb_rates() -> dict[str, float]:
 
 def _fetch_fallback_rates() -> dict[str, float]:
     with httpx.Client(timeout=5.0) as client:
-        resp = client.get(FALLBACK_FX_URL)
+        query = urlencode({"base": "USD", "symbols": "USD,INR,EUR"})
+        resp = client.get(f"{FALLBACK_FX_URL}?{query}")
         resp.raise_for_status()
         data = resp.json()
-    rates: dict[str, float] = data.get("rates", {})
+    rates: dict[str, float] = data.get("rates", {}) if isinstance(data, dict) else {}
     rates["USD"] = 1.0
     return rates
 

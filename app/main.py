@@ -7,10 +7,10 @@ from app.core.auth import TokenVerificationMiddleware
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.db.base import Base
-from app.db.schema_guard import ensure_training_runs_schema
+from app.db.schema_guard import ensure_alerts_schema, ensure_training_runs_schema
 from app.db.session import engine
 # Import all models so Base.metadata includes them
-from app.models import alert_history, price_alert, price_record, training_run  # noqa: F401
+from app.models import alert_history, price_alert, price_record, training_run, user_profile  # noqa: F401
 
 settings = get_settings()
 setup_logging()
@@ -43,3 +43,4 @@ async def on_startup() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await ensure_training_runs_schema(conn)
+        await ensure_alerts_schema(conn)

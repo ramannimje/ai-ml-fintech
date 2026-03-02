@@ -13,6 +13,28 @@ import { useUiStore } from './store/ui-store';
 
 vi.mock('./api/client', () => ({
   client: {
+    profile: vi.fn(async () => ({
+      user_sub: 'test-user',
+      email: 'test@example.com',
+      name: 'Test User',
+      picture_url: null,
+      preferred_region: 'us',
+      email_notifications_enabled: true,
+      alert_cooldown_minutes: 30,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })),
+    updateProfile: vi.fn(async () => ({
+      user_sub: 'test-user',
+      email: 'test@example.com',
+      name: 'Test User',
+      picture_url: null,
+      preferred_region: 'us',
+      email_notifications_enabled: true,
+      alert_cooldown_minutes: 30,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })),
     livePricesByRegion: vi.fn(async (region: string) => [
       {
         commodity: 'gold',
@@ -24,6 +46,29 @@ vi.mock('./api/client', () => ({
         timestamp: new Date().toISOString(),
       },
     ]),
+    historical: vi.fn(async (commodity: string, region: string) => ({
+      commodity,
+      region,
+      currency: region === 'india' ? 'INR' : 'USD',
+      unit: region === 'india' ? '10g_24k' : 'oz',
+      rows: 2,
+      data: [
+        { date: '2025-01-01', open: 99, high: 101, low: 98, close: 100, volume: 10 },
+        { date: '2025-01-02', open: 100, high: 102, low: 99, close: 101, volume: 12 },
+      ],
+    })),
+    predict: vi.fn(async (commodity: string, region: string) => ({
+      commodity,
+      region,
+      unit: region === 'india' ? '10g_24k' : 'oz',
+      currency: region === 'india' ? 'INR' : 'USD',
+      forecast_horizon: new Date().toISOString(),
+      point_forecast: 102,
+      confidence_interval: [100, 104],
+      scenario: 'base',
+      scenario_forecasts: { bull: 108, base: 102, bear: 96 },
+      model_used: 'test-model',
+    })),
   },
 }));
 
@@ -73,7 +118,7 @@ describe('Frontend core', () => {
       </QueryClientProvider>,
     );
 
-    await waitFor(() => expect(screen.getByText(/gold/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/1000.00 USD/i)).toBeInTheDocument());
     fireEvent.change(screen.getByDisplayValue('US'), { target: { value: 'india' } });
     await waitFor(() => expect(screen.getByText(/1000.00 INR/i)).toBeInTheDocument());
   });
