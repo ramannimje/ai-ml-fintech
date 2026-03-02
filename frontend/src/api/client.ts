@@ -13,6 +13,22 @@ import type {
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || '/api';
 const api = axios.create({ baseURL });
+let tokenGetter: (() => Promise<string | undefined>) | null = null;
+
+export function setAccessTokenGetter(getter: () => Promise<string | undefined>): void {
+  tokenGetter = getter;
+}
+
+api.interceptors.request.use(async (config) => {
+  if (tokenGetter) {
+    const token = await tokenGetter();
+    if (token) {
+      config.headers = config.headers ?? {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
+});
 
 const regionSchema = z.object({
   id: z.enum(['india', 'us', 'europe']),

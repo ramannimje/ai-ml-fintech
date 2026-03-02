@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { ThemeToggle } from './theme-toggle';
+import { UserMenu } from './UserMenu';
 
 export function Layout() {
   return (
@@ -12,6 +13,7 @@ export function Layout() {
             <NavLink to="/train">Train Models</NavLink>
             <NavLink to="/metrics">Model Metrics</NavLink>
             <ThemeToggle />
+            <UserMenu />
           </nav>
         </div>
       </header>

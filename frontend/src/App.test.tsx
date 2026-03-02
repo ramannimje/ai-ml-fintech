@@ -27,6 +27,21 @@ vi.mock('./api/client', () => ({
   },
 }));
 
+vi.mock('@auth0/auth0-react', () => ({
+  useAuth0: () => ({
+    isAuthenticated: true,
+    isLoading: false,
+    getAccessTokenSilently: vi.fn(async () => 'test-token'),
+    loginWithRedirect: vi.fn(),
+    logout: vi.fn(),
+    user: {
+      name: 'Test User',
+      email: 'test@example.com',
+      picture: '',
+    },
+  }),
+}));
+
 describe('Frontend core', () => {
   beforeEach(() => {
     localStorage.clear();

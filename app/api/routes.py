@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import CommodityNotSupportedError, TrainingError
+from app.core.auth import get_current_user
 from app.db.session import get_session
 from app.schemas.responses import (
     CommodityDefinition,
@@ -44,12 +45,14 @@ async def health() -> HealthResponse:
 
 
 @router.get("/regions", response_model=list[RegionDefinition])
-async def regions() -> list[RegionDefinition]:
+async def regions(current_user: dict = Depends(get_current_user)) -> list[RegionDefinition]:
+    _ = current_user
     return REGION_CATALOG
 
 
 @router.get("/commodities", response_model=list[CommodityDefinition])
-async def commodities() -> list[CommodityDefinition]:
+async def commodities(current_user: dict = Depends(get_current_user)) -> list[CommodityDefinition]:
+    _ = current_user
     return COMMODITY_CATALOG
 
 
@@ -58,7 +61,8 @@ async def commodities() -> list[CommodityDefinition]:
     response_model=LivePricesEnvelope,
     responses={503: {"model": ErrorResponse}},
 )
-async def live_prices() -> LivePricesEnvelope:
+async def live_prices(current_user: dict = Depends(get_current_user)) -> LivePricesEnvelope:
+    _ = current_user
     try:
         return LivePricesEnvelope(items=await service.live_prices())
     except (CommodityNotSupportedError, TrainingError, RuntimeError) as exc:
@@ -73,7 +77,11 @@ async def live_prices() -> LivePricesEnvelope:
     response_model=LivePricesEnvelope,
     responses={400: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
 )
-async def live_prices_region(region: str) -> LivePricesEnvelope:
+async def live_prices_region(
+    region: str,
+    current_user: dict = Depends(get_current_user),
+) -> LivePricesEnvelope:
+    _ = current_user
     try:
         return LivePricesEnvelope(items=await service.live_prices(region=region))
     except ValueError as exc:
@@ -97,7 +105,9 @@ async def historical(
     commodity: str,
     region: str,
     range: str = Query("1y", description="1m|6m|1y|5y|max"),
+    current_user: dict = Depends(get_current_user),
 ) -> RegionalHistoricalResponse:
+    _ = current_user
     try:
         return await service.historical(commodity, region=region, period=range)
     except CommodityNotSupportedError as exc:
@@ -122,7 +132,9 @@ async def predict(
     region: str,
     horizon: int = Query(1, ge=1, le=90),
     session: AsyncSession = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ) -> RegionalPredictionResponse:
+    _ = current_user
     try:
         return await service.predict(session, commodity, region=region, horizon=horizon)
     except CommodityNotSupportedError as exc:
@@ -147,7 +159,9 @@ async def train(
     region: str,
     horizon: int = Query(1, ge=1, le=90),
     session: AsyncSession = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ) -> TrainResponse:
+    _ = current_user
     try:
         return await service.train(session, commodity, region=region, horizon=horizon)
     except CommodityNotSupportedError as exc:

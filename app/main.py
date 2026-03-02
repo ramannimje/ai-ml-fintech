@@ -1,6 +1,10 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 
+from app.api.auth_routes import router as auth_router
 from app.api.routes import router
+from app.core.auth import TokenVerificationMiddleware
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.db.base import Base
@@ -16,7 +20,17 @@ app = FastAPI(
     description="Multi-region commodity market intelligence platform",
     version="2.0.0",
 )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[settings.frontend_url, "http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
+app.add_middleware(TokenVerificationMiddleware)
 app.include_router(router, prefix="/api")
+app.include_router(auth_router, prefix="/api")
 
 
 @app.on_event("startup")

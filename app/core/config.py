@@ -14,6 +14,13 @@ class Settings(BaseSettings):
     metals_api_key: str | None = None
     fx_api_url: str = "https://open.er-api.com/v6/latest/USD"
     default_region: str = "us"
+    auth0_domain: str = "dev-mrxlgcmm2f0itm0g.us.auth0.com"
+    auth0_client_id: str = "0aSmSDeSBI3UbUA4ls7MzJCEAsavmWg7"
+    auth0_client_secret: str = "your-client-secret"
+    auth0_callback_url: str = "http://localhost:8000/api/auth/callback"
+    auth0_audience: str | None = None
+    frontend_url: str = "http://localhost:5173"
+    secret_key: str = "change-this-secret-key-32-chars-min"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
