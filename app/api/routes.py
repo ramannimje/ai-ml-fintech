@@ -35,12 +35,14 @@ from app.services.commodity_service import CommodityService
 from app.services.market_quote_service import ALERT_COMMODITY_SYMBOLS
 from app.services.news_service import CommodityNewsService
 from app.services.profile_service import ProfileService
+from app.services.settings_service import SettingsService
 
 router = APIRouter()
 service = CommodityService()
 alert_service = AlertService()
 news_service = CommodityNewsService()
 profile_service = ProfileService()
+settings_service = SettingsService()
 
 REGION_CATALOG = [
     RegionDefinition(id="india", currency="INR", unit="10g_24k"),
@@ -186,11 +188,16 @@ async def historical(
 async def predict(
     commodity: str,
     region: str,
-    horizon: int = Query(1, ge=1, le=90),
+    horizon: int | None = Query(default=None, ge=1, le=90),
     session: AsyncSession = Depends(get_session),
     current_user: dict = Depends(get_current_user),
 ) -> RegionalPredictionResponse:
-    _ = current_user
+    if horizon is None:
+        user_settings = await settings_service.get_or_create(
+            session=session,
+            user_id=current_user.get("sub", "unknown"),
+        )
+        horizon = user_settings.prediction_horizon
     try:
         return await service.predict(session, commodity, region=region, horizon=horizon)
     except CommodityNotSupportedError as exc:

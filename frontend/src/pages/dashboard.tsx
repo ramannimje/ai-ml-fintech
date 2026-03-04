@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { client } from '../api/client';
@@ -10,36 +10,27 @@ const commodities: Commodity[] = ['gold', 'silver', 'crude_oil'];
 
 export function DashboardPage() {
   const queryClient = useQueryClient();
-  const profile = useQuery({
-    queryKey: ['profile'],
-    queryFn: () => client.profile(),
+  const settings = useQuery({
+    queryKey: ['user-settings'],
+    queryFn: () => client.getUserSettings(),
     staleTime: 120_000,
   });
   const [region, setRegion] = useState<Region>('us');
   const [activeCommodity, setActiveCommodity] = useState<Commodity>('gold');
-  const autoRegionAppliedRef = useRef(false);
-  const updateProfile = useMutation({
-    mutationFn: (nextRegion: Region) => client.updateProfile({ preferred_region: nextRegion }),
+  const [predictionHorizon, setPredictionHorizon] = useState<number>(30);
+  const updateSettings = useMutation({
+    mutationFn: (input: { default_region?: Region; prediction_horizon?: number }) => client.updateUserSettings(input),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['profile'] });
+      await queryClient.invalidateQueries({ queryKey: ['user-settings'] });
     },
   });
 
   useEffect(() => {
-    if (profile.data?.preferred_region) {
-      setRegion(profile.data.preferred_region);
-    }
-  }, [profile.data?.preferred_region]);
-
-  useEffect(() => {
-    if (!profile.data || autoRegionAppliedRef.current) return;
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-    if (profile.data.preferred_region === 'us' && tz === 'Asia/Kolkata') {
-      autoRegionAppliedRef.current = true;
-      setRegion('india');
-      updateProfile.mutate('india');
-    }
-  }, [profile.data, updateProfile]);
+    if (!settings.data) return;
+    setRegion(settings.data.default_region);
+    setActiveCommodity(settings.data.default_commodity);
+    setPredictionHorizon(settings.data.prediction_horizon);
+  }, [settings.data]);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['live', region],
@@ -59,41 +50,35 @@ export function DashboardPage() {
 
   const predictionQueries = useQueries({
     queries: commodities.map((commodity) => ({
-      queryKey: ['pred-dashboard', commodity, region, 30],
-      queryFn: () => client.predict(commodity, region, 30),
+      queryKey: ['pred-dashboard', commodity, region, predictionHorizon],
+      queryFn: () => client.predict(commodity, region, predictionHorizon),
       staleTime: 180_000,
     })),
   });
 
-  const historicalByCommodity = useMemo(
-    () => {
-      const out: Record<Commodity, HistoricalResponse | undefined> = {
-        gold: undefined,
-        silver: undefined,
-        crude_oil: undefined,
-      };
-      commodities.forEach((commodity, idx) => {
-        out[commodity] = historicalQueries[idx]?.data;
-      });
-      return out;
-    },
-    [historicalQueries],
-  );
+  const historicalByCommodity = useMemo(() => {
+    const out: Record<Commodity, HistoricalResponse | undefined> = {
+      gold: undefined,
+      silver: undefined,
+      crude_oil: undefined,
+    };
+    commodities.forEach((commodity, idx) => {
+      out[commodity] = historicalQueries[idx]?.data;
+    });
+    return out;
+  }, [historicalQueries]);
 
-  const predictionByCommodity = useMemo(
-    () => {
-      const out: Record<Commodity, PredictionResponse | undefined> = {
-        gold: undefined,
-        silver: undefined,
-        crude_oil: undefined,
-      };
-      commodities.forEach((commodity, idx) => {
-        out[commodity] = predictionQueries[idx]?.data;
-      });
-      return out;
-    },
-    [predictionQueries],
-  );
+  const predictionByCommodity = useMemo(() => {
+    const out: Record<Commodity, PredictionResponse | undefined> = {
+      gold: undefined,
+      silver: undefined,
+      crude_oil: undefined,
+    };
+    commodities.forEach((commodity, idx) => {
+      out[commodity] = predictionQueries[idx]?.data;
+    });
+    return out;
+  }, [predictionQueries]);
 
   const summary = useMemo(() => {
     const list = data ?? [];
@@ -134,89 +119,102 @@ export function DashboardPage() {
     }));
   }, [activeCommodity, historicalByCommodity, predictionByCommodity]);
 
-  const onRegionChange = (next: Region) => {
+  const onRegionChange = async (next: Region) => {
     setRegion(next);
-    updateProfile.mutate(next);
+    await updateSettings.mutateAsync({ default_region: next }).catch(() => undefined);
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Live Bullion Analytics</h1>
-          <p className="text-muted text-sm">Default region is loaded from your profile after login.</p>
+          <h1 className="shell-title">Market Intelligence Dashboard</h1>
+          <p className="shell-subtitle">Live pricing, scenario overlays, and cross-commodity momentum for {region.toUpperCase()}.</p>
         </div>
-        <select value={region} onChange={(e) => onRegionChange(e.target.value as Region)} className="ui-input rounded px-3 py-1">
-          {regions.map((r) => <option key={r} value={r}>{r.toUpperCase()}</option>)}
-        </select>
-      </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Region</label>
+          <select value={region} onChange={(e) => onRegionChange(e.target.value as Region)} className="ui-input min-w-28">
+            {regions.map((r) => (
+              <option key={r} value={r}>
+                {r.toUpperCase()}
+              </option>
+            ))}
+          </select>
+        </div>
+      </section>
 
-      {isLoading && <div className="surface-card rounded p-4 text-sm">Loading live prices...</div>}
-      {isError && <div className="rounded border border-red-200 bg-red-50 p-4 text-sm text-red-700">Failed to load live prices.</div>}
+      {isLoading && <div className="panel rounded-2xl p-4 text-sm">Loading live prices...</div>}
+      {isError && (
+        <div className="panel rounded-2xl p-4 text-sm" style={{ color: 'var(--danger)', borderColor: 'color-mix(in srgb, var(--danger) 35%, var(--border))' }}>
+          Failed to load live prices.
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {data?.map((item) => (
-          <div key={item.commodity} className="surface-card rounded-xl p-4">
-            <div className="text-muted text-xs uppercase">{item.commodity.replace('_', ' ')}</div>
-            <div className="mt-2 text-2xl font-semibold">{item.live_price.toFixed(2)} {item.currency}</div>
-            <div className="text-muted mt-1 text-xs">
-              Predicted (30D): {predictionByCommodity[item.commodity]?.point_forecast?.toFixed(2) ?? '...'} {item.currency}
-            </div>
-            <div className="text-muted text-xs">
-              CI: {predictionByCommodity[item.commodity]?.confidence_interval?.map((x) => x.toFixed(2)).join(' - ') ?? '...'}
-            </div>
-            <div className="mt-1 text-xs font-medium">
-              Trend: {predictionByCommodity[item.commodity]?.scenario === 'bull' ? 'Bullish' : predictionByCommodity[item.commodity]?.scenario === 'bear' ? 'Bearish' : 'Base'}
-            </div>
-            <div className="text-muted text-xs">{item.unit} | {item.source}</div>
-            <Link to={`/commodity/${item.commodity}?region=${region}`} className="text-accent mt-2 inline-block text-sm">Open analysis</Link>
-          </div>
+          <article key={item.commodity} className="panel panel-hover-gold p-5">
+            <p className="kpi-label">{item.commodity.replace('_', ' ')}</p>
+            <p className="kpi-value">{item.live_price.toFixed(2)} {item.currency}</p>
+            <p className="mt-1 text-sm text-muted">Predicted ({predictionHorizon}D): {predictionByCommodity[item.commodity]?.point_forecast?.toFixed(2) ?? '...'} {item.currency}</p>
+            <p className="text-xs text-muted">CI: {predictionByCommodity[item.commodity]?.confidence_interval?.map((x) => x.toFixed(2)).join(' - ') ?? '...'}</p>
+            <p className="mt-2 text-sm font-semibold text-accent">
+              {predictionByCommodity[item.commodity]?.scenario === 'bull'
+                ? 'Bullish Bias'
+                : predictionByCommodity[item.commodity]?.scenario === 'bear'
+                  ? 'Bearish Bias'
+                  : 'Base Scenario'}
+            </p>
+            <p className="mt-1 text-xs text-muted">{item.unit} | {item.source}</p>
+            <Link to={`/commodity/${item.commodity}?region=${region}`} className="mt-3 inline-flex text-sm font-semibold text-accent hover:underline">
+              Open detailed analysis
+            </Link>
+          </article>
         ))}
-      </div>
+      </section>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <Stat title="Spread Difference" value={summary.spread.toFixed(2)} />
-        <Stat title="FX Impact Visualization" value={`${(summary.vol * 0.65).toFixed(2)}%`} />
-        <Stat title="Premium/Discount vs LBMA" value={`${(summary.vol * 0.35).toFixed(2)}%`} />
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <Stat title="Spread Difference" value={summary.spread.toFixed(2)} highlight />
+        <Stat title="FX Impact" value={`${(summary.vol * 0.65).toFixed(2)}%`} />
+        <Stat title="Premium vs LBMA" value={`${(summary.vol * 0.35).toFixed(2)}%`} />
         <Stat title="Volatility Meter" value={`${summary.vol.toFixed(2)}%`} />
-      </div>
+      </section>
 
-      <div className="surface-card rounded-xl p-4">
-        <div className="mb-3 flex flex-wrap gap-2">
+      <section className="panel rounded-2xl p-5">
+        <div className="mb-4 flex flex-wrap gap-2">
           {commodities.map((commodity) => (
             <button
               key={commodity}
               type="button"
               onClick={() => setActiveCommodity(commodity)}
-              className={`rounded px-3 py-1 text-sm ${activeCommodity === commodity ? 'bg-sky-600 text-white' : 'ui-input'}`}
+              className={activeCommodity === commodity ? 'btn-primary' : 'btn-ghost'}
             >
               {commodity.replace('_', ' ')}
             </button>
           ))}
         </div>
         <CommodityChart data={chartData} />
-      </div>
+      </section>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {trends.map((trend) => (
-          <div key={trend.commodity} className="surface-card rounded-xl p-4">
-            <div className="text-muted text-xs uppercase">{trend.commodity.replace('_', ' ')}</div>
-            <div className={`mt-2 text-lg font-semibold ${trend.bullish ? 'text-emerald-600' : 'text-rose-600'}`}>
+          <article key={trend.commodity} className="panel p-5">
+            <p className="kpi-label">{trend.commodity.replace('_', ' ')}</p>
+            <p className={`mt-2 text-2xl font-semibold ${trend.bullish ? 'status-up' : 'status-down'}`}>
               {trend.bullish ? 'Up' : 'Down'} {Math.abs(trend.pct).toFixed(2)}%
-            </div>
-            <div className="text-muted text-xs">Absolute move: {trend.delta.toFixed(2)}</div>
-          </div>
+            </p>
+            <p className="text-sm text-muted">Absolute move: {trend.delta.toFixed(2)}</p>
+          </article>
         ))}
-      </div>
+      </section>
     </div>
   );
 }
 
-function Stat({ title, value }: { title: string; value: string }) {
+function Stat({ title, value, highlight = false }: { title: string; value: string; highlight?: boolean }) {
   return (
-    <div className="surface-card rounded-xl p-4">
-      <div className="text-muted text-xs uppercase">{title}</div>
-      <div className="mt-2 text-lg font-semibold">{value}</div>
+    <div className="panel p-5">
+      <p className="kpi-label">{title}</p>
+      <p className={`kpi-value ${highlight ? 'kpi-value-accent' : ''}`}>{value}</p>
     </div>
   );
 }

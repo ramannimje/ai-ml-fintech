@@ -16,29 +16,35 @@ export function UserMenu() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="ui-input flex items-center gap-2 rounded px-2 py-1"
+        className="panel-soft flex items-center gap-2 rounded-xl px-2 py-1"
       >
         {user?.picture ? (
-          <img src={user.picture} alt={user.name || 'user'} className="h-7 w-7 rounded-full" />
+          <img src={user.picture} alt={user.name || 'user'} className="h-8 w-8 rounded-full border" style={{ borderColor: 'var(--gold-soft)' }} />
         ) : (
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-500 text-xs text-white">
+          <span
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold"
+            style={{ background: 'var(--primary)', color: '#e8eef7' }}
+          >
             {initials(user?.name, user?.email)}
           </span>
         )}
-        <span className="max-w-[120px] truncate text-sm">{user?.name || user?.email || 'User'}</span>
+        <span className="max-w-[130px] truncate text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--text)' }}>
+          {user?.name || user?.email || 'User'}
+        </span>
       </button>
       {open && (
-        <div className="surface-card absolute right-0 z-30 mt-2 w-52 rounded-lg p-2 shadow-lg">
-          <Link to="/profile" onClick={() => setOpen(false)} className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
+        <div className="panel absolute right-0 z-30 mt-2 w-56 rounded-xl p-2">
+          <Link to="/profile" onClick={() => setOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:opacity-90">
             Profile
           </Link>
-          <button type="button" className="w-full rounded px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
+          <Link to="/settings" onClick={() => setOpen(false)} className="block rounded-lg px-3 py-2 text-left text-sm hover:opacity-90">
             Settings
-          </button>
+          </Link>
           <button
             type="button"
             onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}
-            className="w-full rounded px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40"
+            className="w-full rounded-lg px-3 py-2 text-left text-sm"
+            style={{ color: 'var(--danger)' }}
           >
             Logout
           </button>

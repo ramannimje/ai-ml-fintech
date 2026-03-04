@@ -8,6 +8,36 @@ const regions: Region[] = ['india', 'us', 'europe'];
 const alertCommodities: AlertCommodity[] = ['gold', 'silver', 'crude_oil', 'natural_gas', 'copper'];
 const alertTypes: AlertType[] = ['above', 'below', 'pct_change_24h', 'spike', 'drop'];
 
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  if (typeof error === 'object' && error !== null && 'response' in error) {
+    const response = (error as { response?: { data?: { detail?: unknown } } }).response;
+    const detail = response?.data?.detail;
+    if (typeof detail === 'object' && detail !== null && 'error' in detail) {
+      const message = (detail as { error?: { message?: unknown } }).error?.message;
+      if (typeof message === 'string' && message.trim()) {
+        return message;
+      }
+    }
+    if (Array.isArray(detail)) {
+      const message = detail
+        .map((item) =>
+          typeof item === 'object' && item !== null && 'msg' in item
+            ? (item as { msg?: unknown }).msg
+            : undefined,
+        )
+        .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        .join(', ');
+      if (message) {
+        return message;
+      }
+    }
+  }
+  return fallback;
+}
+
 export function ProfilePage() {
   const queryClient = useQueryClient();
   const [feedback, setFeedback] = useState<string>('');
@@ -71,14 +101,9 @@ export function ProfilePage() {
       await queryClient.invalidateQueries({ queryKey: ['alerts'] });
       setFeedback('Alert created successfully.');
     },
-    onError: (error: any) => {
-      const responseDetail = error?.response?.data?.detail;
-      const detail =
-        responseDetail?.error?.message ||
-        (Array.isArray(responseDetail) ? responseDetail.map((x: any) => x?.msg).filter(Boolean).join(', ') : undefined) ||
-        error?.message ||
-        'Failed to create alert.';
-      setFeedback(detail);
+    onError: (error: unknown) => {
+      const message = extractErrorMessage(error, 'Failed to create alert.');
+      setFeedback(message);
     },
   });
 
@@ -123,31 +148,40 @@ export function ProfilePage() {
   };
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Profile & Alert History</h1>
+    <div className="space-y-6">
+      <section>
+        <h1 className="shell-title">Client Profile & Alert Governance</h1>
+        <p className="shell-subtitle">Control regional preferences, delivery channels, and compliance logs from a single workspace.</p>
+      </section>
+
       {!!feedback && (
-        <div className="rounded border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+        <div className="panel rounded-2xl px-4 py-3 text-sm" style={{ borderColor: 'var(--border-strong)' }}>
           {feedback}
         </div>
       )}
-      <div className="surface-card rounded-xl p-4">
-        <h2 className="font-medium">Profile Settings</h2>
-        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div className="text-sm">
-            <div className="text-muted text-xs uppercase">User</div>
-            <div className="mt-1">{profile.data?.name || profile.data?.email || '—'}</div>
+
+      <section className="panel p-5">
+        <h2 className="text-2xl font-semibold">Profile Settings</h2>
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="panel-soft rounded-xl p-3 text-sm">
+            <div className="kpi-label">User</div>
+            <div className="mt-2 font-semibold">{profile.data?.name || profile.data?.email || '—'}</div>
           </div>
-          <div>
-            <div className="text-muted text-xs uppercase">Preferred Region</div>
+          <div className="panel-soft rounded-xl p-3">
+            <div className="kpi-label">Preferred Region</div>
             <select
               value={profile.data?.preferred_region ?? 'us'}
               onChange={(e) => updateProfile.mutate({ preferred_region: e.target.value as Region })}
-              className="ui-input mt-1 w-full rounded px-3 py-2 text-sm"
+              className="ui-input mt-2"
             >
-              {regions.map((r) => <option key={r} value={r}>{r.toUpperCase()}</option>)}
+              {regions.map((r) => (
+                <option key={r} value={r}>
+                  {r.toUpperCase()}
+                </option>
+              ))}
             </select>
           </div>
-          <label className="mt-6 flex items-center gap-2 text-sm">
+          <label className="panel-soft mt-0 flex items-center gap-2 rounded-xl p-3 text-sm text-muted md:mt-5">
             <input
               type="checkbox"
               checked={!!profile.data?.email_notifications_enabled}
@@ -156,22 +190,17 @@ export function ProfilePage() {
             Email notifications
           </label>
         </div>
-      </div>
+      </section>
 
-      <div className="surface-card rounded-xl p-4">
-        <div className="flex items-center justify-between">
-          <h2 className="font-medium">Configured Alerts</h2>
-          <button
-            type="button"
-            onClick={() => evaluateAlerts.mutate()}
-            disabled={evaluateAlerts.isPending}
-            className="rounded bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-          >
+      <section className="panel p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-2xl font-semibold">Configured Alerts</h2>
+          <button type="button" onClick={() => evaluateAlerts.mutate()} disabled={evaluateAlerts.isPending} className="btn-primary">
             {evaluateAlerts.isPending ? 'Checking...' : 'Run Alert Check'}
           </button>
         </div>
-        <p className="text-muted mt-1 text-sm">Supports email alerts (all types) and WhatsApp alerts (above/below with mobile number).</p>
-        <div className="mt-3">
+        <p className="mt-1 text-sm text-muted">Email alerts support all types. WhatsApp supports above and below conditions.</p>
+        <div className="mt-4 panel-soft rounded-xl p-4">
           <AlertWizard
             region={profile.data?.preferred_region ?? 'us'}
             defaultCooldownMinutes={profile.data?.alert_cooldown_minutes ?? 30}
@@ -181,13 +210,13 @@ export function ProfilePage() {
             pending={createAlert.isPending}
           />
         </div>
-        <div className="mt-3 space-y-2">
+        <div className="mt-4 space-y-2">
           {alerts.data?.map((item) => (
-            <div key={item.id} className="surface-muted rounded p-3 text-sm">
+            <div key={item.id} className="panel-soft rounded-xl p-3 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <div className="font-medium">{item.commodity.replace('_', ' ')} | {item.alert_type}</div>
-                  <div className="text-muted text-xs">
+                  <div className="font-semibold">{item.commodity.replace('_', ' ')} | {item.alert_type}</div>
+                  <div className="text-xs text-muted">
                     {item.threshold.toFixed(2)} {item.currency} | Cooldown {item.cooldown_minutes}m | Email {item.email_notifications_enabled ? 'On' : 'Off'}
                   </div>
                 </div>
@@ -195,58 +224,58 @@ export function ProfilePage() {
                   <button
                     type="button"
                     onClick={() => toggleAlert.mutate({ alertId: item.id, enabled: !item.enabled })}
-                    className={`rounded px-2 py-1 text-xs ${item.enabled ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-900'}`}
+                    className={item.enabled ? 'btn-primary' : 'btn-ghost'}
                   >
                     {item.enabled ? 'Enabled' : 'Disabled'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => deleteAlert.mutate(item.id)}
-                    className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50"
-                  >
+                  <button type="button" onClick={() => deleteAlert.mutate(item.id)} className="btn-ghost" style={{ color: 'var(--danger)' }}>
                     Delete
                   </button>
                 </div>
               </div>
             </div>
           ))}
-          {!alerts.data?.length && <p className="text-muted text-sm">No alerts yet.</p>}
+          {!alerts.data?.length && <p className="text-sm text-muted">No alerts yet.</p>}
         </div>
-      </div>
-      <div className="surface-card rounded-xl p-4">
+      </section>
+
+      <section className="panel p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-medium">Alert Event Log</h2>
-          <button type="button" onClick={exportHistory} className="rounded border px-3 py-2 text-xs">Export CSV</button>
+          <h2 className="text-2xl font-semibold">Alert Event Log</h2>
+          <button type="button" onClick={exportHistory} className="btn-ghost">Export CSV</button>
         </div>
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <select value={commodityFilter} onChange={(e) => setCommodityFilter(e.target.value as AlertCommodity | '')} className="ui-input rounded px-3 py-2 text-sm">
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <select value={commodityFilter} onChange={(e) => setCommodityFilter(e.target.value as AlertCommodity | '')} className="ui-input">
             <option value="">All commodities</option>
-            {alertCommodities.map((item) => <option key={item} value={item}>{item.replace('_', ' ')}</option>)}
+            {alertCommodities.map((item) => (
+              <option key={item} value={item}>
+                {item.replace('_', ' ')}
+              </option>
+            ))}
           </select>
-          <select value={alertTypeFilter} onChange={(e) => setAlertTypeFilter(e.target.value as AlertType | '')} className="ui-input rounded px-3 py-2 text-sm">
+          <select value={alertTypeFilter} onChange={(e) => setAlertTypeFilter(e.target.value as AlertType | '')} className="ui-input">
             <option value="">All alert types</option>
-            {alertTypes.map((item) => <option key={item} value={item}>{item}</option>)}
+            {alertTypes.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
           </select>
-          <input
-            value={searchFilter}
-            onChange={(e) => setSearchFilter(e.target.value)}
-            placeholder="Search messages..."
-            className="ui-input rounded px-3 py-2 text-sm"
-          />
+          <input value={searchFilter} onChange={(e) => setSearchFilter(e.target.value)} placeholder="Search messages..." className="ui-input" />
         </div>
-        <div className="mt-3 max-h-[460px] space-y-2 overflow-auto">
+        <div className="mt-4 max-h-[460px] space-y-2 overflow-auto pr-1">
           {history.data?.map((row) => (
-            <div key={row.id} className="surface-muted rounded p-3 text-sm">
-              <div className="font-medium">{row.message}</div>
-              <div className="text-muted text-xs">
+            <div key={row.id} className="panel-soft rounded-xl p-3 text-sm">
+              <div className="font-semibold">{row.message}</div>
+              <div className="text-xs text-muted">
                 {new Date(row.triggered_at).toLocaleString()} | Email: {row.email_status}
                 {row.delivery_provider ? ` (${row.delivery_provider})` : ''}
               </div>
             </div>
           ))}
-          {!history.data?.length && <p className="text-muted text-sm">No triggered alerts yet.</p>}
+          {!history.data?.length && <p className="text-sm text-muted">No triggered alerts yet.</p>}
         </div>
-      </div>
+      </section>
     </div>
   );
 }

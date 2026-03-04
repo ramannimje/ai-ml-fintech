@@ -82,17 +82,21 @@ export function AlertWizard({
 
   return (
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-      <select value={commodity} onChange={(e) => setCommodity(e.target.value as AlertCommodity)} className="ui-input rounded px-3 py-2 text-sm">
-        {alertCommodities.map((item) => <option key={item} value={item}>{item.replace('_', ' ')}</option>)}
+      <select value={commodity} onChange={(e) => setCommodity(e.target.value as AlertCommodity)} className="ui-input">
+        {alertCommodities.map((item) => (
+          <option key={item} value={item}>
+            {item.replace('_', ' ')}
+          </option>
+        ))}
       </select>
-      <select value={alertType} onChange={(e) => setAlertType(e.target.value as AlertType)} className="ui-input rounded px-3 py-2 text-sm">
-        {alertTypes.map((item) => <option key={item} value={item}>{item}</option>)}
+      <select value={alertType} onChange={(e) => setAlertType(e.target.value as AlertType)} className="ui-input">
+        {alertTypes.map((item) => (
+          <option key={item} value={item}>
+            {item}
+          </option>
+        ))}
       </select>
-      <select
-        value={channel}
-        onChange={(e) => setChannel(e.target.value as 'email' | 'whatsapp')}
-        className="ui-input rounded px-3 py-2 text-sm"
-      >
+      <select value={channel} onChange={(e) => setChannel(e.target.value as 'email' | 'whatsapp')} className="ui-input">
         <option value="email">Email</option>
         <option value="whatsapp">WhatsApp</option>
       </select>
@@ -101,7 +105,7 @@ export function AlertWizard({
         onChange={(e) => setThreshold(e.target.value)}
         type="number"
         min="0"
-        className="ui-input rounded px-3 py-2 text-sm"
+        className="ui-input"
         placeholder="Threshold"
       />
       <input
@@ -109,35 +113,30 @@ export function AlertWizard({
         onChange={(e) => setCooldownMinutes(e.target.value)}
         type="number"
         min="5"
-        className="ui-input rounded px-3 py-2 text-sm"
+        className="ui-input"
         placeholder="Cooldown (min)"
       />
       {channel === 'whatsapp' ? (
         <input
           value={whatsappNumber}
           onChange={(e) => setWhatsappNumber(e.target.value)}
-          className="ui-input rounded px-3 py-2 text-sm sm:col-span-2"
+          className="ui-input sm:col-span-2"
           placeholder="WhatsApp number (+15551234567)"
         />
       ) : null}
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex items-center gap-2 text-sm text-muted">
         <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
         Alert enabled
       </label>
       {channel === 'email' ? (
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex items-center gap-2 text-sm text-muted">
           <input type="checkbox" checked={emailEnabled} onChange={(e) => setEmailEnabled(e.target.checked)} />
           Email notifications
         </label>
       ) : (
-        <div className="text-muted text-xs sm:self-center">WhatsApp alerts are sent to the number above.</div>
+        <div className="text-xs text-muted sm:self-center">WhatsApp alerts are sent to the number above.</div>
       )}
-      <button
-        type="button"
-        onClick={submit}
-        disabled={pending}
-        className="rounded bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-60 sm:col-span-2"
-      >
+      <button type="button" onClick={submit} disabled={pending} className="btn-primary sm:col-span-2">
         {pending ? 'Saving...' : 'Create Alert'}
       </button>
     </div>

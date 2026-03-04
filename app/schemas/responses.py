@@ -225,3 +225,33 @@ class UserProfileUpdateRequest(BaseModel):
     preferred_region: Optional[Literal["india", "us", "europe"]] = None
     email_notifications_enabled: Optional[bool] = None
     alert_cooldown_minutes: Optional[int] = Field(default=None, ge=5, le=1440)
+
+
+class UserSettingsResponse(BaseModel):
+    id: int
+    user_id: str
+    default_region: Literal["india", "us", "europe"]
+    default_commodity: Literal["gold", "silver", "crude_oil"]
+    prediction_horizon: int = Field(ge=1, le=90)
+    email_notifications: bool
+    alert_cooldown_minutes: int = Field(ge=5, le=1440)
+    alerts_enabled: bool
+    enable_chronos_bolt: bool
+    enable_xgboost: bool
+    auto_retrain: bool
+    theme_preference: Literal["light", "dark", "system"]
+    created_at: datetime
+    updated_at: datetime
+
+
+class UserSettingsUpdateRequest(BaseModel):
+    default_region: Optional[Literal["india", "us", "europe"]] = None
+    default_commodity: Optional[Literal["gold", "silver", "crude_oil"]] = None
+    prediction_horizon: Optional[int] = Field(default=None, ge=1, le=90)
+    email_notifications: Optional[bool] = None
+    alert_cooldown_minutes: Optional[int] = Field(default=None, ge=5, le=1440)
+    alerts_enabled: Optional[bool] = None
+    enable_chronos_bolt: Optional[bool] = None
+    enable_xgboost: Optional[bool] = None
+    auto_retrain: Optional[bool] = None
+    theme_preference: Optional[Literal["light", "dark", "system"]] = None

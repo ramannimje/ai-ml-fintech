@@ -144,6 +144,23 @@ export interface UserProfile {
   updated_at: string;
 }
 
+export interface UserSettings {
+  id: number;
+  user_id: string;
+  default_region: Region;
+  default_commodity: Commodity;
+  prediction_horizon: number;
+  email_notifications: boolean;
+  alert_cooldown_minutes: number;
+  alerts_enabled: boolean;
+  enable_chronos_bolt: boolean;
+  enable_xgboost: boolean;
+  auto_retrain: boolean;
+  theme_preference: 'light' | 'dark' | 'system';
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AlertHistoryFilters {
   commodity?: AlertCommodity;
   alert_type?: AlertType;

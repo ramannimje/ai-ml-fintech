@@ -10,6 +10,36 @@ const ranges: Array<'1m' | '6m' | '1y' | '5y' | 'max'> = ['1m', '6m', '1y', '5y'
 const alertCommodities: AlertCommodity[] = ['gold', 'silver', 'crude_oil', 'natural_gas', 'copper'];
 const alertTypes: AlertType[] = ['above', 'below', 'pct_change_24h', 'spike', 'drop'];
 
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  if (typeof error === 'object' && error !== null && 'response' in error) {
+    const response = (error as { response?: { data?: { detail?: unknown } } }).response;
+    const detail = response?.data?.detail;
+    if (typeof detail === 'object' && detail !== null && 'error' in detail) {
+      const message = (detail as { error?: { message?: unknown } }).error?.message;
+      if (typeof message === 'string' && message.trim()) {
+        return message;
+      }
+    }
+    if (Array.isArray(detail)) {
+      const message = detail
+        .map((item) =>
+          typeof item === 'object' && item !== null && 'msg' in item
+            ? (item as { msg?: unknown }).msg
+            : undefined,
+        )
+        .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        .join(', ');
+      if (message) {
+        return message;
+      }
+    }
+  }
+  return fallback;
+}
+
 export function CommodityPage() {
   const { name = 'gold' } = useParams();
   const [search, setSearch] = useSearchParams();
@@ -90,14 +120,9 @@ export function CommodityPage() {
       await queryClient.invalidateQueries({ queryKey: ['alerts'] });
       setAlertFeedback('Alert created successfully.');
     },
-    onError: (error: any) => {
-      const responseDetail = error?.response?.data?.detail;
-      const detail =
-        responseDetail?.error?.message ||
-        (Array.isArray(responseDetail) ? responseDetail.map((x: any) => x?.msg).filter(Boolean).join(', ') : undefined) ||
-        error?.message ||
-        'Failed to create alert.';
-      setAlertFeedback(detail);
+    onError: (error: unknown) => {
+      const message = extractErrorMessage(error, 'Failed to create alert.');
+      setAlertFeedback(message);
     },
   });
 
@@ -129,56 +154,65 @@ export function CommodityPage() {
   };
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">{commodity.replace('_', ' ').toUpperCase()}</h1>
-      <div className="flex flex-wrap gap-2">
-        <select value={region} onChange={(e) => onRegion(e.target.value as Region)} className="ui-input rounded px-3 py-1">
-          <option value="india">India</option>
-          <option value="us">US</option>
-          <option value="europe">Europe</option>
-        </select>
-        <select value={range} onChange={(e) => setRange(e.target.value as typeof ranges[number])} className="ui-input rounded px-3 py-1">
-          {ranges.map((r) => <option key={r} value={r}>{r}</option>)}
-        </select>
-        {[7, 30, 90].map((h) => (
-          <button
-            key={h}
-            onClick={() => setHorizon(h)}
-            aria-pressed={horizon === h}
-            className={`rounded px-3 py-1 text-sm ${horizon === h ? 'bg-sky-600 text-white' : 'ui-input'}`}
-          >
-            {h}D horizon
-          </button>
-        ))}
-      </div>
+    <div className="space-y-6">
+      <section>
+        <h1 className="shell-title">{commodity.replace('_', ' ').toUpperCase()} Strategy Desk</h1>
+        <p className="shell-subtitle">Signal overlays, scenario forecasting, and risk controls tailored by region.</p>
+      </section>
+
+      <section className="panel rounded-2xl p-5">
+        <div className="flex flex-wrap gap-2">
+          <select value={region} onChange={(e) => onRegion(e.target.value as Region)} className="ui-input max-w-[10rem]">
+            <option value="india">India</option>
+            <option value="us">US</option>
+            <option value="europe">Europe</option>
+          </select>
+          <select value={range} onChange={(e) => setRange(e.target.value as typeof ranges[number])} className="ui-input max-w-[8rem]">
+            {ranges.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+          {[7, 30, 90].map((h) => (
+            <button key={h} onClick={() => setHorizon(h)} aria-pressed={horizon === h} className={horizon === h ? 'btn-primary' : 'btn-ghost'}>
+              {h}D horizon
+            </button>
+          ))}
+        </div>
+      </section>
 
       <CommodityChart data={chartData} />
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="surface-card rounded-xl p-4">
-          <h2 className="font-medium">Prediction Overlay</h2>
-          <p className="mt-2 text-xl">{prediction.data?.point_forecast?.toFixed(2) ?? '—'} {prediction.data?.currency ?? ''}</p>
-          <p className="text-muted text-sm">CI: {prediction.data?.confidence_interval?.join(' - ') ?? '—'}</p>
-          <p className="text-muted text-sm">Scenario: {prediction.data?.scenario ?? '—'}</p>
-        </div>
-        <div className="surface-card rounded-xl p-4">
-          <h2 className="font-medium">Scenario Forecasts</h2>
-          <p className="mt-2 text-sm">Bull: {prediction.data?.scenario_forecasts?.bull?.toFixed(2) ?? '—'}</p>
+
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <article className="panel p-5">
+          <p className="kpi-label">Prediction Overlay</p>
+          <p className="kpi-value kpi-value-accent">{prediction.data?.point_forecast?.toFixed(2) ?? '—'} {prediction.data?.currency ?? ''}</p>
+          <p className="text-sm text-muted">Confidence interval: {prediction.data?.confidence_interval?.join(' - ') ?? '—'}</p>
+          <p className="mt-2 text-sm font-semibold text-accent">Scenario: {prediction.data?.scenario ?? '—'}</p>
+        </article>
+        <article className="panel p-5">
+          <p className="kpi-label">Scenario Forecasts</p>
+          <p className="mt-3 text-sm">Bull: <span className="text-accent">{prediction.data?.scenario_forecasts?.bull?.toFixed(2) ?? '—'}</span></p>
           <p className="text-sm">Base: {prediction.data?.scenario_forecasts?.base?.toFixed(2) ?? '—'}</p>
           <p className="text-sm">Bear: {prediction.data?.scenario_forecasts?.bear?.toFixed(2) ?? '—'}</p>
-        </div>
-      </div>
+        </article>
+      </section>
 
-      <div className="surface-card rounded-xl p-4">
+      <section className="panel p-5">
         <div className="flex items-center justify-between">
-          <h2 className="font-medium">AI Commodity News Summary</h2>
+          <h2 className="text-2xl font-semibold">AI Market Brief</h2>
           <span
-            className={`rounded-full px-3 py-1 text-xs font-medium uppercase ${
-              newsSummary.data?.sentiment === 'bullish'
-                ? 'bg-emerald-100 text-emerald-700'
-                : newsSummary.data?.sentiment === 'bearish'
-                  ? 'bg-rose-100 text-rose-700'
-                  : 'bg-slate-100 text-slate-700'
-            }`}
+            className="rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em]"
+            style={{
+              color:
+                newsSummary.data?.sentiment === 'bullish'
+                  ? 'var(--success)'
+                  : newsSummary.data?.sentiment === 'bearish'
+                    ? 'var(--danger)'
+                    : 'var(--text-muted)',
+              borderColor: 'var(--border-strong)',
+            }}
           >
             {newsSummary.data?.sentiment === 'bullish'
               ? 'Bullish'
@@ -187,38 +221,42 @@ export function CommodityPage() {
                 : 'Neutral'}
           </span>
         </div>
-        <p className="mt-3 whitespace-pre-line text-sm">{newsSummary.data?.summary ?? 'Loading AI summary...'}</p>
-        <div className="mt-3 space-y-2 text-sm">
+        <p className="mt-3 whitespace-pre-line text-sm leading-relaxed">{newsSummary.data?.summary ?? 'Loading AI summary...'}</p>
+        <div className="mt-4 space-y-2 text-sm">
           {newsSummary.data?.headlines?.slice(0, 3).map((headline, idx) => (
-            <div key={`${headline.title}-${idx}`} className="surface-muted rounded px-3 py-2">
-              <div className="font-medium">{headline.title}</div>
-              <div className="text-muted text-xs">{headline.source}</div>
+            <div key={`${headline.title}-${idx}`} className="panel-soft rounded-xl px-3 py-2">
+              <div className="font-semibold">{headline.title}</div>
+              <div className="text-xs text-muted">{headline.source}</div>
             </div>
           ))}
         </div>
-      </div>
+      </section>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="surface-card rounded-xl p-4">
-          <h2 className="font-medium">Smart Price Alerts</h2>
-          <p className="text-muted mt-1 text-sm">Create email alerts (all types) or WhatsApp alerts (above/below with mobile number).</p>
+      <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <article className="panel p-5">
+          <h2 className="text-2xl font-semibold">Price Alerts</h2>
+          <p className="mt-1 text-sm text-muted">Create email alerts (all types) or WhatsApp alerts (above/below with mobile number).</p>
           {!!alertFeedback && (
-            <div className="mt-2 rounded border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+            <div className="mt-3 rounded-lg border px-3 py-2 text-sm" style={{ borderColor: 'var(--border-strong)' }}>
               {alertFeedback}
             </div>
           )}
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <select value={alertCommodity} onChange={(e) => setAlertCommodity(e.target.value as AlertCommodity)} className="ui-input rounded px-3 py-2 text-sm">
-              {alertCommodities.map((item) => <option key={item} value={item}>{item.replace('_', ' ')}</option>)}
+          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <select value={alertCommodity} onChange={(e) => setAlertCommodity(e.target.value as AlertCommodity)} className="ui-input">
+              {alertCommodities.map((item) => (
+                <option key={item} value={item}>
+                  {item.replace('_', ' ')}
+                </option>
+              ))}
             </select>
-            <select value={alertType} onChange={(e) => setAlertType(e.target.value as AlertType)} className="ui-input rounded px-3 py-2 text-sm">
-              {alertTypes.map((item) => <option key={item} value={item}>{item}</option>)}
+            <select value={alertType} onChange={(e) => setAlertType(e.target.value as AlertType)} className="ui-input">
+              {alertTypes.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
             </select>
-            <select
-              value={alertChannel}
-              onChange={(e) => setAlertChannel(e.target.value as 'email' | 'whatsapp')}
-              className="ui-input rounded px-3 py-2 text-sm"
-            >
+            <select value={alertChannel} onChange={(e) => setAlertChannel(e.target.value as 'email' | 'whatsapp')} className="ui-input">
               <option value="email">Email</option>
               <option value="whatsapp">WhatsApp</option>
             </select>
@@ -227,76 +265,62 @@ export function CommodityPage() {
               onChange={(e) => setThreshold(e.target.value)}
               type="number"
               min="0"
-              className="ui-input rounded px-3 py-2 text-sm"
+              className="ui-input"
               placeholder="Threshold"
             />
             {alertChannel === 'whatsapp' ? (
               <input
                 value={whatsappNumber}
                 onChange={(e) => setWhatsappNumber(e.target.value)}
-                className="ui-input rounded px-3 py-2 text-sm sm:col-span-2"
+                className="ui-input sm:col-span-2"
                 placeholder="WhatsApp number (+15551234567)"
               />
             ) : null}
-            <button
-              type="button"
-              onClick={() => createAlert.mutate()}
-              disabled={createAlert.isPending}
-              className="rounded bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-60"
-            >
+            <button type="button" onClick={() => createAlert.mutate()} disabled={createAlert.isPending} className="btn-primary sm:col-span-2">
               {createAlert.isPending ? 'Saving...' : 'Create Alert'}
             </button>
           </div>
 
           <div className="mt-4 space-y-2">
             {alerts.data?.map((item) => (
-              <div key={item.id} className="surface-muted flex items-center justify-between rounded p-3 text-sm">
+              <div key={item.id} className="panel-soft flex items-center justify-between rounded-xl p-3 text-sm">
                 <div>
-                  <div className="font-medium">{item.commodity.replace('_', ' ')} {item.alert_type}</div>
-                  <div className="text-muted">{item.threshold.toFixed(2)} {item.currency} ({item.unit})</div>
+                  <div className="font-semibold">{item.commodity.replace('_', ' ')} {item.alert_type}</div>
+                  <div className="text-xs text-muted">{item.threshold.toFixed(2)} {item.currency} ({item.unit})</div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => deleteAlert.mutate(item.id)}
-                  className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50"
-                >
+                <button type="button" onClick={() => deleteAlert.mutate(item.id)} className="btn-ghost" style={{ color: 'var(--danger)' }}>
                   Delete
                 </button>
               </div>
             ))}
-            {!alerts.data?.length && <p className="text-muted text-sm">No alerts configured.</p>}
+            {!alerts.data?.length && <p className="text-sm text-muted">No alerts configured.</p>}
           </div>
-        </div>
+        </article>
 
-        <div className="surface-card rounded-xl p-4">
+        <article className="panel p-5">
           <div className="flex items-center justify-between">
-            <h2 className="font-medium">Alert History Log</h2>
-            <button
-              type="button"
-              onClick={() => evaluateAlerts.mutate()}
-              disabled={evaluateAlerts.isPending}
-              className="rounded bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-            >
+            <h2 className="text-2xl font-semibold">Alert History</h2>
+            <button type="button" onClick={() => evaluateAlerts.mutate()} disabled={evaluateAlerts.isPending} className="btn-primary">
               {evaluateAlerts.isPending ? 'Checking...' : 'Run Alert Check'}
             </button>
           </div>
           {!!evaluateAlerts.data && (
-            <p className="text-muted mt-2 text-xs">
+            <p className="mt-2 text-xs text-muted">
               Checked {evaluateAlerts.data.checked} alerts, triggered {evaluateAlerts.data.triggered}.
             </p>
           )}
-          <div className="mt-3 max-h-80 space-y-2 overflow-auto">
+          <div className="mt-3 max-h-80 space-y-2 overflow-auto pr-1">
             {history.data?.map((row) => (
-              <div key={row.id} className="surface-muted rounded p-3 text-sm">
-                <div className="font-medium">{row.commodity.replace('_', ' ')} {row.alert_type}</div>
-                <div className="text-muted text-xs">{row.message}</div>
-                <div className="text-muted mt-1 text-xs">Email: {row.email_status}</div>
+              <div key={row.id} className="panel-soft rounded-xl p-3 text-sm">
+                <div className="font-semibold">{row.commodity.replace('_', ' ')} {row.alert_type}</div>
+                <div className="text-xs text-muted">{row.message}</div>
+                <div className="mt-1 text-xs text-muted">Email: {row.email_status}</div>
               </div>
             ))}
-            {!history.data?.length && <p className="text-muted text-sm">No alert events yet.</p>}
+            {!history.data?.length && <p className="text-sm text-muted">No alert events yet.</p>}
           </div>
-        </div>
-      </div>
+        </article>
+      </section>
     </div>
   );
 }

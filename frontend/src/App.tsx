@@ -9,6 +9,7 @@ import { CommodityPage } from './pages/commodity';
 import { DashboardPage } from './pages/dashboard';
 import { MetricsPage } from './pages/metrics';
 import { ProfilePage } from './pages/profile';
+import { SettingsPage } from './pages/settings';
 import { TrainPage } from './pages/train';
 
 const router = createBrowserRouter([
@@ -21,6 +22,7 @@ const router = createBrowserRouter([
       { path: 'train', element: <TrainPage /> },
       { path: 'metrics', element: <MetricsPage /> },
       { path: 'profile', element: <ProfilePage /> },
+      { path: 'settings', element: <SettingsPage /> },
     ],
   },
 ]);

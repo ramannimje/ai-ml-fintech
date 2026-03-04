@@ -18,6 +18,7 @@ import type {
   RegionDefinition,
   TrainResponse,
   UserProfile,
+  UserSettings,
   WhatsAppAlert,
 } from '../types/api';
 
@@ -190,6 +191,23 @@ const userProfileSchema = z.object({
   updated_at: z.string(),
 });
 
+const userSettingsSchema = z.object({
+  id: z.number(),
+  user_id: z.string(),
+  default_region: z.enum(['india', 'us', 'europe']),
+  default_commodity: z.enum(['gold', 'silver', 'crude_oil']),
+  prediction_horizon: z.number().int().min(1).max(90),
+  email_notifications: z.boolean(),
+  alert_cooldown_minutes: z.number().int().min(5).max(1440),
+  alerts_enabled: z.boolean(),
+  enable_chronos_bolt: z.boolean(),
+  enable_xgboost: z.boolean(),
+  auto_retrain: z.boolean(),
+  theme_preference: z.enum(['light', 'dark', 'system']),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
 function withQuery(path: string, filters: AlertHistoryFilters = {}): string {
   const params = new URLSearchParams();
   if (filters.commodity) params.set('commodity', filters.commodity);
@@ -256,4 +274,18 @@ export const client = {
     email_notifications_enabled?: boolean;
     alert_cooldown_minutes?: number;
   }) => userProfileSchema.parse((await api.put('/profile', input)).data) as UserProfile,
+  getUserSettings: async () =>
+    userSettingsSchema.parse((await api.get('/settings')).data) as UserSettings,
+  updateUserSettings: async (input: {
+    default_region?: Region;
+    default_commodity?: Commodity;
+    prediction_horizon?: number;
+    email_notifications?: boolean;
+    alert_cooldown_minutes?: number;
+    alerts_enabled?: boolean;
+    enable_chronos_bolt?: boolean;
+    enable_xgboost?: boolean;
+    auto_retrain?: boolean;
+    theme_preference?: 'light' | 'dark' | 'system';
+  }) => userSettingsSchema.parse((await api.post('/settings', input)).data) as UserSettings,
 };

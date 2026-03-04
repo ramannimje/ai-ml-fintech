@@ -35,6 +35,38 @@ vi.mock('./api/client', () => ({
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })),
+    getUserSettings: vi.fn(async () => ({
+      id: 1,
+      user_id: 'test-user',
+      default_region: 'us',
+      default_commodity: 'gold',
+      prediction_horizon: 30,
+      email_notifications: true,
+      alert_cooldown_minutes: 30,
+      alerts_enabled: true,
+      enable_chronos_bolt: false,
+      enable_xgboost: true,
+      auto_retrain: false,
+      theme_preference: 'system',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })),
+    updateUserSettings: vi.fn(async (input: { default_region?: 'india' | 'us' | 'europe' } | undefined) => ({
+      id: 1,
+      user_id: 'test-user',
+      default_region: input?.default_region ?? 'us',
+      default_commodity: 'gold',
+      prediction_horizon: 30,
+      email_notifications: true,
+      alert_cooldown_minutes: 30,
+      alerts_enabled: true,
+      enable_chronos_bolt: false,
+      enable_xgboost: true,
+      auto_retrain: false,
+      theme_preference: 'system',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })),
     livePricesByRegion: vi.fn(async (region: string) => [
       {
         commodity: 'gold',
@@ -100,7 +132,7 @@ describe('Frontend core', () => {
         <Layout />
       </MemoryRouter>,
     );
-    expect(view.getByText(/AI Commodity Predictor/i)).toBeInTheDocument();
+    expect(view.getByText(/Aureus Wealth Desk/i)).toBeInTheDocument();
   });
 
   it('chart_render', () => {
