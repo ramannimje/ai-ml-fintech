@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import os
 from pathlib import Path
 
 import pandas as pd
@@ -49,6 +50,29 @@ class MarketDataFetcher:
             raise ValueError(f"Historical data missing columns: {missing}. Available: {list(df.columns)}")
         return df
 
+    @staticmethod
+    def _apply_period_filter(df: pd.DataFrame, period: str) -> pd.DataFrame:
+        if df.empty:
+            return df
+        if period == "max":
+            return df
+        out = df.copy()
+        out["Date"] = pd.to_datetime(out["Date"])
+        end = out["Date"].max()
+        if period.endswith("d"):
+            days = int(period[:-1] or "1")
+            start = end - pd.Timedelta(days=days)
+            return out[out["Date"] >= start]
+        if period.endswith("m"):
+            months = int(period[:-1] or "1")
+            start = end - pd.DateOffset(months=months)
+            return out[out["Date"] >= start]
+        if period.endswith("y"):
+            years = int(period[:-1] or "1")
+            start = end - pd.DateOffset(years=years)
+            return out[out["Date"] >= start]
+        return out
+
     def get_historical(self, commodity: str, period: str = "5y", region: str = "us") -> pd.DataFrame:
         """
         Fetch historical OHLCV data for a commodity.
@@ -69,8 +93,13 @@ class MarketDataFetcher:
         elif legacy_path.exists():
             cached = pd.read_csv(legacy_path, parse_dates=["Date"])
 
+        refresh_on_request = os.getenv("DATA_REFRESH_ON_REQUEST", "").strip().lower() in {"1", "true", "yes"}
+        if not cached.empty and not refresh_on_request:
+            filtered = self._apply_period_filter(cached, period)
+            return filtered[["Date", "Open", "High", "Low", "Close", "Volume"]].drop_duplicates("Date").sort_values("Date")
+
         if cached.empty:
-            fresh = yf.download(symbol, period=period, auto_adjust=False, progress=False).reset_index()
+            fresh = yf.download(symbol, period=period, auto_adjust=False, progress=False, threads=False).reset_index()
             fresh = self._normalize_download(fresh)
         else:
             last_dt = cached["Date"].max().to_pydatetime().replace(tzinfo=timezone.utc)
@@ -78,7 +107,13 @@ class MarketDataFetcher:
             if start_date > datetime.now(timezone.utc).date():
                 fresh = cached.copy()
             else:
-                fresh = yf.download(symbol, start=start_date.isoformat(), auto_adjust=False, progress=False).reset_index()
+                fresh = yf.download(
+                    symbol,
+                    start=start_date.isoformat(),
+                    auto_adjust=False,
+                    progress=False,
+                    threads=False,
+                ).reset_index()
                 if not fresh.empty:
                     fresh = self._normalize_download(fresh)
                     fresh = pd.concat([cached, fresh], ignore_index=True)
@@ -88,7 +123,7 @@ class MarketDataFetcher:
         fresh = fresh[["Date", "Open", "High", "Low", "Close", "Volume"]].drop_duplicates("Date")
         fresh = fresh.sort_values("Date").ffill().dropna()
         fresh.to_csv(path, index=False)
-        return fresh
+        return self._apply_period_filter(fresh, period)
 
     def get_macro_features(self, period: str = "5y") -> pd.DataFrame:
         """

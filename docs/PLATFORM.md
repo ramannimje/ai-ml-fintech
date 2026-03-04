@@ -37,7 +37,7 @@ Operational fallback: Yahoo Finance
 
 1. Fetch region-tagged historical OHLC.
 2. Build features including `fx_volatility`, `inflation_proxy`, `interest_rates_fred_ecb_rbi`.
-3. Train region-specific model.
+3. Train region-specific model (benchmarks include `chronos_bolt` when installed and `ENABLE_CHRONOS_BOLT=true`, plus tree/neural/Prophet baselines).
 4. Validate with walk-forward split.
 5. Persist artifact + training metadata.
 6. Predict to fixed horizon `2026-12-31` with bull/base/bear scenarios.

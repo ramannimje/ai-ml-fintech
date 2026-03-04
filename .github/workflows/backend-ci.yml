@@ -1,0 +1,81 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend-tests-default:
+    name: Backend Tests (Default Models)
+    runs-on: ubuntu-latest
+    env:
+      ENABLE_CHRONOS_BOLT: "false"
+      DISABLE_XGBOOST: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Run backend test suite
+        run: pytest -q tests
+
+  chronos-enabled-smoke:
+    name: Chronos Enabled Smoke
+    runs-on: ubuntu-latest
+    env:
+      ENABLE_CHRONOS_BOLT: "true"
+      DISABLE_XGBOOST: "true"
+      OMP_NUM_THREADS: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Chronos wrapper smoke (real model inference)
+        run: |
+          python - <<'PY'
+          import numpy as np
+          import pandas as pd
+
+          from ml.training.models import ChronosBoltRegressor, chronos_bolt_available
+
+          assert chronos_bolt_available(), "Chronos should be available in this job"
+          history = np.linspace(1800.0, 2200.0, 256)
+          model = ChronosBoltRegressor(
+              prediction_length=3,
+              model_id="amazon/chronos-bolt-tiny",
+              num_samples=4,
+              context_limit=256,
+          )
+          model.fit(pd.DataFrame({"dummy": history}), pd.Series(history))
+          pred = model.predict_from_series(history, prediction_length=3)
+          assert pred.shape == (3,), f"unexpected pred shape: {pred.shape}"
+          assert np.all(np.isfinite(pred)), "predictions must be finite"
+          print("chronos-smoke-ok", pred.tolist())
+          PY

@@ -22,8 +22,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           redirect_uri: authCallbackUrl,
           ...(authAudience ? { audience: authAudience } : {}),
         }}
-        cacheLocation="localstorage"
-        useRefreshTokens
+        cacheLocation="memory"
+        onRedirectCallback={() => {
+          window.history.replaceState({}, document.title, '/');
+        }}
       >
         <QueryClientProvider client={queryClient}>
           <ThemeSync />

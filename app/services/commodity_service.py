@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 import logging
+import math
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +46,8 @@ logger = logging.getLogger(__name__)
 class CommodityService:
     # Simple in-memory cache for loaded models per (commodity, region)
     _model_cache: dict[tuple[str, str], tuple[Any, dict]] = {}
+    # Short-lived prediction response cache for smoother UI refreshes.
+    _prediction_cache: dict[tuple[str, str, int], tuple[datetime, RegionalPredictionResponse]] = {}
     def __init__(self) -> None:
         self.settings = get_settings()
         self.fetcher = MarketDataFetcher(cache_dir=self.settings.data_cache_dir)
@@ -73,11 +76,11 @@ class CommodityService:
         # Convert from canonical USD/troy_oz feed into region unit/currency without extra multipliers.
         return convert_price(troy_oz_to_grams(usd_per_troy_oz), region, fx)
 
-    def _enrich_features(self, raw: pd.DataFrame, region: str) -> pd.DataFrame:
+    def _enrich_features(self, raw: pd.DataFrame, region: str, fx: dict[str, float] | None = None) -> pd.DataFrame:
         feat = add_features(raw)
-        fx = get_fx_rates()
-        inr = fx.get("INR")
-        eur = fx.get("EUR")
+        rates = fx or get_fx_rates()
+        inr = rates.get("INR")
+        eur = rates.get("EUR")
         fx_series = pd.Series(dtype=float, index=feat.index)
         if region == "india" and inr:
             fx_series = pd.Series(inr, index=feat.index)
@@ -340,33 +343,70 @@ class CommodityService:
         )
         return result.scalar_one_or_none()
 
+    async def prewarm_latest_models(self, session: AsyncSession) -> None:
+        for commodity in self.commodities:
+            for region in self.regions:
+                try:
+                    metrics = await self.latest_metrics(session, commodity, region=region)
+                    if not metrics:
+                        continue
+                    model, metadata = load_model(Path(metrics.artifact_path))
+                    self._model_cache[(commodity, region)] = (model, metadata)
+                except Exception:
+                    continue
+
     async def predict(
         self, session: AsyncSession, commodity: str, region: str, horizon: int = 1
     ) -> RegionalPredictionResponse:
         self._validate(commodity)
         region = self._validate_region(region)
+        requested_horizon = max(1, int(horizon))
+        cache_key = (commodity, region, requested_horizon)
+        cached = self._prediction_cache.get(cache_key)
+        now = datetime.now(timezone.utc)
+        if cached and (now - cached[0]).total_seconds() <= 20:
+            return cached[1]
         try:
             metrics = await self.latest_metrics(session, commodity, region=region)
             if not metrics:
-                await self.train(session, commodity, region=region, horizon=horizon)
-                metrics = await self.latest_metrics(session, commodity, region=region)
-                if not metrics:
-                    raise TrainingError("Training did not persist metadata")
+                raise TrainingError("No trained model metadata available yet")
 
-            model, metadata = load_model(Path(metrics.artifact_path))
-            # Use existing model regardless of horizon to improve response speed.
+            model_cache_key = (commodity, region)
+            cached_model = self._model_cache.get(model_cache_key)
+            if cached_model and str(cached_model[1].get("version", "")) == metrics.model_version:
+                model, metadata = cached_model
+            else:
+                model, metadata = load_model(Path(metrics.artifact_path))
+                self._model_cache[model_cache_key] = (model, metadata)
+            trained_horizon = int(metadata.get("horizon", requested_horizon))
 
             raw = self.fetcher.get_historical(commodity, region=region)
-            feat = self._enrich_features(raw, region)
-            x, _ = make_supervised(feat, horizon=max(1, metadata.get("horizon", horizon)))
-            if x.empty:
-                raise TrainingError("Not enough data points to generate prediction features")
-            latest_features = x.tail(1)
-            base_usd_oz = float(model.predict(latest_features)[0])
             fx = get_fx_rates()
+            feat = self._enrich_features(raw, region, fx=fx)
+            model_name = str(metadata.get("model_name", "")).lower()
+            if model_name == "chronos_bolt" and hasattr(model, "predict_from_series"):
+                close_series = raw["Close"].dropna().astype(float)
+                if close_series.empty:
+                    raise TrainingError("Not enough data points to generate Chronos prediction")
+                # Use requested API horizon for Chronos multi-step forecasting.
+                chronos_forecast = model.predict_from_series(close_series, prediction_length=max(1, horizon))
+                base_usd_oz = float(np.asarray(chronos_forecast).reshape(-1)[-1])
+            else:
+                x, _ = make_supervised(feat, horizon=max(1, metadata.get("horizon", horizon)))
+                if x.empty:
+                    raise TrainingError("Not enough data points to generate prediction features")
+                latest_features = x.tail(1)
+                base_usd_oz = float(model.predict(latest_features)[0])
+                if trained_horizon != requested_horizon:
+                    # Fast horizon adaptation to avoid slow retraining during UI horizon toggles.
+                    latest_close = float(raw["Close"].iloc[-1])
+                    trained_ret = (base_usd_oz - latest_close) / max(1e-9, latest_close)
+                    scaled_ret = float(np.clip(trained_ret * (requested_horizon / max(1, trained_horizon)), -0.35, 0.35))
+                    base_usd_oz = latest_close * (1.0 + scaled_ret)
             point_forecast = self._to_regional_price(base_usd_oz, region, fx)
 
-            spread_usd_oz = max(0.01 * base_usd_oz, float(metrics.rmse))
+            horizon_scale = math.sqrt(max(1, requested_horizon) / max(1, trained_horizon))
+            spread_usd_oz = max(0.01 * abs(base_usd_oz), float(metrics.rmse) * horizon_scale)
             low = self._to_regional_price(base_usd_oz - spread_usd_oz, region, fx)
             high = self._to_regional_price(base_usd_oz + spread_usd_oz, region, fx)
             scenarios = {
@@ -374,7 +414,7 @@ class CommodityService:
                 "base": round(point_forecast, 4),
                 "bear": round(point_forecast * 0.94, 4),
             }
-            return RegionalPredictionResponse(
+            response = RegionalPredictionResponse(
                 commodity=commodity,
                 region=region,
                 unit=REGION_UNITS[region],
@@ -384,8 +424,14 @@ class CommodityService:
                 confidence_interval=(round(low, 4), round(high, 4)),
                 scenario="base",
                 scenario_forecasts=scenarios,
-                model_used=metrics.model_version,
+                model_used=(
+                    metrics.model_version
+                    if trained_horizon == requested_horizon
+                    else f"{metrics.model_version}@h{trained_horizon}->h{requested_horizon}"
+                ),
             )
+            self._prediction_cache[cache_key] = (now, response)
+            return response
         except Exception as exc:
             # Keep dashboard/predictions available even if model training/artifacts fail.
             logger.warning(
@@ -410,7 +456,7 @@ class CommodityService:
                 "base": round(point_forecast, 4),
                 "bear": round(point_forecast * 0.96, 4),
             }
-            return RegionalPredictionResponse(
+            response = RegionalPredictionResponse(
                 commodity=commodity,
                 region=region,
                 unit=REGION_UNITS[region],
@@ -422,3 +468,5 @@ class CommodityService:
                 scenario_forecasts=scenarios,
                 model_used="naive_fallback_v1",
             )
+            self._prediction_cache[cache_key] = (now, response)
+            return response

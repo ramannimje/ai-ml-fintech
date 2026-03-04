@@ -4,6 +4,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { client } from '../api/client';
 import type { AlertCommodity, AlertDirection, AlertType, Commodity, Region } from '../types/api';
 import { CommodityChart } from '../components/chart';
+import { buildCommodityChartData } from '../utils/prediction-chart';
 
 const ranges: Array<'1m' | '6m' | '1y' | '5y' | 'max'> = ['1m', '6m', '1y', '5y', 'max'];
 const alertCommodities: AlertCommodity[] = ['gold', 'silver', 'crude_oil', 'natural_gas', 'copper'];
@@ -33,6 +34,7 @@ export function CommodityPage() {
     queryKey: ['pred', commodity, region, horizon],
     queryFn: () => client.predict(commodity, region, horizon),
     staleTime: 0,
+    placeholderData: (previous) => previous,
   });
 
   const alerts = useQuery({
@@ -117,20 +119,8 @@ export function CommodityPage() {
   });
 
   const chartData = useMemo(() => {
-    const hist = historical.data?.data?.slice(-120) ?? [];
-    const low = prediction.data?.confidence_interval?.[0];
-    const high = prediction.data?.confidence_interval?.[1];
-    return hist.map((d, idx) => ({
-      date: d.date,
-      close: d.close,
-      high: d.high ?? d.close,
-      low: d.low ?? d.close,
-      volume: d.volume ?? 0,
-      pred: idx === hist.length - 1 ? prediction.data?.point_forecast : undefined,
-      bandLow: low,
-      bandHigh: high,
-    }));
-  }, [historical.data, prediction.data]);
+    return buildCommodityChartData(historical.data, prediction.data, horizon, 120);
+  }, [historical.data, prediction.data, horizon]);
 
   const onRegion = (next: Region) => {
     setRegion(next);
@@ -151,7 +141,12 @@ export function CommodityPage() {
           {ranges.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
         {[7, 30, 90].map((h) => (
-          <button key={h} onClick={() => setHorizon(h)} className="ui-input rounded px-3 py-1">
+          <button
+            key={h}
+            onClick={() => setHorizon(h)}
+            aria-pressed={horizon === h}
+            className={`rounded px-3 py-1 text-sm ${horizon === h ? 'bg-sky-600 text-white' : 'ui-input'}`}
+          >
             {h}D horizon
           </button>
         ))}

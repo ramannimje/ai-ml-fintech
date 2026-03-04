@@ -62,6 +62,10 @@ Nginx (single entrypoint :80)
 - `GET /api/predict/{commodity}/{region}?horizon=1..90`
 - `POST /api/train/{commodity}/{region}?horizon=1..90`
 
+Model training benchmarks candidate regressors (dependency-aware): Chronos-Bolt, XGBoost, RandomForest, Prophet variants, and an MLP baseline.
+Chronos-Bolt benchmarking is opt-in via `ENABLE_CHRONOS_BOLT=true`.
+XGBoost can be disabled for constrained runtimes via `DISABLE_XGBOOST=true`.
+
 ## Local Setup
 
 ### 1) Environment

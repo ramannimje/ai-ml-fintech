@@ -2,13 +2,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.api import routes as api_routes
 from app.api.routes import router
 from app.core.auth import TokenVerificationMiddleware
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.db.base import Base
 from app.db.schema_guard import ensure_alerts_schema, ensure_training_runs_schema
-from app.db.session import engine
+from app.db.session import AsyncSessionLocal, engine
 # Import all models so Base.metadata includes them
 from app.models import alert_history, price_alert, price_record, training_run, user_profile  # noqa: F401
 from app.workers.whatsapp_alert_worker import whatsapp_alert_worker
@@ -45,6 +46,8 @@ async def on_startup() -> None:
         await conn.run_sync(Base.metadata.create_all)
         await ensure_training_runs_schema(conn)
         await ensure_alerts_schema(conn)
+    async with AsyncSessionLocal() as session:
+        await api_routes.service.prewarm_latest_models(session)
     if settings.whatsapp_worker_enabled:
         whatsapp_alert_worker.start()
 

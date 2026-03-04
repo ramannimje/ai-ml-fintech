@@ -1,40 +1,46 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Manrope:wght@400;500;600;700&display=swap');
 
 :root {
   color-scheme: light;
-  --bg: #f8fafc;
+  --bg: #f6f8fb;
   --surface: #ffffff;
-  --surface-muted: #f1f5f9;
-  --border: #cbd5e1;
-  --text: #0f172a;
-  --text-muted: #475569;
-  --accent: #0369a1;
+  --surface-muted: #edf2fb;
+  --border: #c7d5ec;
+  --text: #0d2a57;
+  --text-muted: #3f5f93;
+  --accent: #b88a1b;
 }
 
 :root.dark {
   color-scheme: dark;
-  --bg: #020617;
-  --surface: #0f172a;
-  --surface-muted: #1e293b;
-  --border: #334155;
-  --text: #e2e8f0;
-  --text-muted: #94a3b8;
-  --accent: #38bdf8;
+  --bg: #071532;
+  --surface: #0b1f45;
+  --surface-muted: #122d5d;
+  --border: #284a87;
+  --text: #e7eefb;
+  --text-muted: #b8cae8;
+  --accent: #d9b44a;
 }
 
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+  font-family: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+}
+
+h1, h2, h3 {
+  font-family: "Libre Baskerville", "Times New Roman", serif;
+  letter-spacing: 0.01em;
 }
 
 .finance-grid {
   background-image:
-    linear-gradient(rgba(148, 163, 184, 0.25) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.25) 1px, transparent 1px);
+    linear-gradient(rgba(66, 112, 184, 0.2) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(66, 112, 184, 0.2) 1px, transparent 1px);
   background-size: 28px 28px;
 }
 
@@ -44,8 +50,8 @@ body {
   position: absolute;
   inset: -20% 0 0 0;
   background:
-    radial-gradient(circle, rgba(45, 212, 191, 0.85) 0 1px, transparent 2px) 0 0/120px 120px,
-    radial-gradient(circle, rgba(248, 113, 113, 0.7) 0 1px, transparent 2px) 60px 20px/140px 140px;
+    radial-gradient(circle, rgba(16, 88, 183, 0.7) 0 1px, transparent 2px) 0 0/120px 120px,
+    radial-gradient(circle, rgba(191, 145, 39, 0.7) 0 1px, transparent 2px) 60px 20px/140px 140px;
   animation: drift 18s linear infinite;
   opacity: 0.35;
 }
