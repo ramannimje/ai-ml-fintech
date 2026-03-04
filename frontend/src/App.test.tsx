@@ -132,7 +132,7 @@ describe('Frontend core', () => {
         <Layout />
       </MemoryRouter>,
     );
-    expect(view.getByText(/Aureus Wealth Desk/i)).toBeInTheDocument();
+    expect(view.getByText(/MarketPulse AI/i)).toBeInTheDocument();
   });
 
   it('chart_render', () => {

@@ -7,6 +7,7 @@ import type {
   AlertHistoryItem,
   AlertHistoryFilters,
   AlertType,
+  AIChatResponse,
   CommodityNewsSummary,
   Commodity,
   CommodityDefinition,
@@ -208,6 +209,23 @@ const userSettingsSchema = z.object({
   updated_at: z.string(),
 });
 
+const aiChatResponseSchema = z.object({
+  answer: z.string(),
+  intent: z.enum([
+    'market_summary',
+    'price_forecast',
+    'historical_trend_analysis',
+    'commodity_comparison',
+    'region_comparison',
+    'trading_outlook',
+    'volatility_explanation',
+  ]),
+  region: z.enum(['india', 'us', 'europe']),
+  commodity: z.enum(['gold', 'silver', 'crude_oil', 'natural_gas', 'copper']).nullable().optional(),
+  horizon_days: z.number().int().min(1).max(1095),
+  generated_at: z.string(),
+});
+
 function withQuery(path: string, filters: AlertHistoryFilters = {}): string {
   const params = new URLSearchParams();
   if (filters.commodity) params.set('commodity', filters.commodity);
@@ -288,4 +306,53 @@ export const client = {
     auto_retrain?: boolean;
     theme_preference?: 'light' | 'dark' | 'system';
   }) => userSettingsSchema.parse((await api.post('/settings', input)).data) as UserSettings,
+  sendChatMessage: async (message: string) =>
+    aiChatResponseSchema.parse((await api.post('/ai/chat', { message })).data) as AIChatResponse,
+  sendChatMessageStream: async (
+    message: string,
+    handlers: {
+      onToken: (chunk: string) => void;
+      onDone: (response: AIChatResponse) => void;
+    },
+  ) => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (tokenGetter) {
+      const token = await tokenGetter();
+      if (token) headers.Authorization = `Bearer ${token}`;
+    }
+    const response = await fetch(`${baseURL}/ai/chat/stream`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ message }),
+      credentials: 'include',
+    });
+    if (!response.ok || !response.body) {
+      const errText = await response.text().catch(() => '');
+      throw new Error(errText || `Streaming request failed with status ${response.status}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split('\n\n');
+      buffer = events.pop() ?? '';
+      for (const rawEvent of events) {
+        const lines = rawEvent.split('\n');
+        const eventName = lines.find((line) => line.startsWith('event:'))?.replace('event:', '').trim() ?? 'message';
+        const dataLine = lines.find((line) => line.startsWith('data:'))?.replace('data:', '').trim() ?? '{}';
+        const parsed = JSON.parse(dataLine) as { delta?: string } | AIChatResponse | { error?: string };
+        if (eventName === 'token' && 'delta' in parsed && typeof parsed.delta === 'string') {
+          handlers.onToken(parsed.delta);
+        } else if (eventName === 'done') {
+          handlers.onDone(aiChatResponseSchema.parse(parsed));
+        } else if (eventName === 'error') {
+          throw new Error(typeof (parsed as { error?: string }).error === 'string' ? (parsed as { error: string }).error : 'Unknown streaming error');
+        }
+      }
+    }
+  },
 };

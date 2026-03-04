@@ -5,12 +5,13 @@ import { Auth0Provider } from '@auth0/auth0-react';
 import App from './App';
 import { queryClient } from './lib/query';
 import { ThemeSync } from './components/theme-sync';
+import { resolveAuthCallbackUrl } from './lib/auth';
 import './index.css';
 
 const authDomain = import.meta.env.VITE_AUTH0_DOMAIN || __AUTH0_DOMAIN__ || '';
 const authClientId = import.meta.env.VITE_AUTH0_CLIENT_ID || __AUTH0_CLIENT_ID__ || '';
 const authAudience = import.meta.env.VITE_AUTH0_AUDIENCE || __AUTH0_AUDIENCE__;
-const authCallbackUrl = import.meta.env.VITE_AUTH0_CALLBACK_URL || window.location.origin;
+const authCallbackUrl = resolveAuthCallbackUrl(import.meta.env.VITE_AUTH0_CALLBACK_URL);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

@@ -170,3 +170,19 @@ export interface AlertHistoryFilters {
   search?: string;
   limit?: number;
 }
+
+export interface AIChatResponse {
+  answer: string;
+  intent:
+    | 'market_summary'
+    | 'price_forecast'
+    | 'historical_trend_analysis'
+    | 'commodity_comparison'
+    | 'region_comparison'
+    | 'trading_outlook'
+    | 'volatility_explanation';
+  region: Region;
+  commodity?: AlertCommodity | null;
+  horizon_days: number;
+  generated_at: string;
+}

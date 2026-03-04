@@ -48,6 +48,8 @@ class CommodityService:
     _model_cache: dict[tuple[str, str], tuple[Any, dict]] = {}
     # Short-lived prediction response cache for smoother UI refreshes.
     _prediction_cache: dict[tuple[str, str, int], tuple[datetime, RegionalPredictionResponse]] = {}
+    _metals_live_cooldown_until: datetime | None = None
+    _metals_live_last_error: str | None = None
     def __init__(self) -> None:
         self.settings = get_settings()
         self.fetcher = MarketDataFetcher(cache_dir=self.settings.data_cache_dir)
@@ -143,19 +145,7 @@ class CommodityService:
         now = datetime.now(timezone.utc)
         out: list[LivePriceResponse] = []
 
-        # Try free Metals.live API (no API key required)
-        try:
-            resp = httpx.get("https://api.metals.live/v1/spot", timeout=10.0)
-            resp.raise_for_status()
-            raw_data = resp.json()
-            # raw_data is a list of dicts e.g. [{"gold":3120.5,"silver":31.2,...}]
-            rates: dict[str, float] = {}
-            for entry in raw_data:
-                if isinstance(entry, dict):
-                    rates.update(entry)
-        except Exception as exc:
-            logger.warning("Metals.live API fetch failed: %s", exc)
-            rates = {}
+        rates = await self._fetch_metals_live_rates()
         # Process rates for known commodities
         for commodity in self.commodities:
             price_usd = rates.get(commodity)
@@ -227,6 +217,29 @@ class CommodityService:
             return out
 
         return out
+
+    async def _fetch_metals_live_rates(self) -> dict[str, float]:
+        now = datetime.now(timezone.utc)
+        if self._metals_live_cooldown_until and now < self._metals_live_cooldown_until:
+            return {}
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0, headers={"User-Agent": "ai-commodity-predictor/1.0"}) as client:
+                resp = await client.get("https://api.metals.live/v1/spot")
+            resp.raise_for_status()
+            raw_data = resp.json()
+            rates: dict[str, float] = {}
+            for entry in raw_data:
+                if isinstance(entry, dict):
+                    rates.update(entry)
+            self._metals_live_last_error = None
+            return rates
+        except Exception as exc:
+            self._metals_live_last_error = str(exc)
+            # Back off this source to avoid repeated TLS/noise; yfinance fallback remains active.
+            self._metals_live_cooldown_until = now + timedelta(minutes=10)
+            logger.warning("Metals.live API fetch failed: %s (cooldown 10m)", exc)
+            return {}
 
     async def historical(self, commodity: str, region: str, period: str = "1y") -> RegionalHistoricalResponse:
         self._validate(commodity)

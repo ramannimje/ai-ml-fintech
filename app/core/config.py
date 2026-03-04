@@ -40,6 +40,15 @@ class Settings(BaseSettings):
     newsapi_key: str | None = None
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-3-5-haiku-latest"
+    ai_chat_provider: str = "gemini"
+    openai_api_key: str | None = None
+    openai_chat_model: str = "gpt-5.2"
+    openai_fallback_models: str = "gpt-5,gpt-4.1,gpt-4o-mini"
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-1.5-pro"
+    gemini_fallback_models: str = "gemini-1.5-flash"
+    ollama_base_url: str = "http://127.0.0.1:11434"
+    ollama_model: str = "llama3.1"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

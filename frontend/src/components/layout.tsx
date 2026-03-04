@@ -4,6 +4,7 @@ import { UserMenu } from './UserMenu';
 
 const navItems = [
   { to: '/', label: 'Dashboard', end: true },
+  { to: '/chat', label: 'Market AI' },
   { to: '/train', label: 'Model Studio' },
   { to: '/metrics', label: 'Market Metrics' },
   { to: '/profile', label: 'Client Profile' },
@@ -15,17 +16,14 @@ export function Layout() {
     <div className="min-h-screen">
       <header className="sticky top-0 z-30 border-b backdrop-blur-xl" style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--bg) 86%, transparent)' }}>
         <div className="shell-wrap py-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center justify-between gap-4">
-              <Link to="/" className="text-xl font-semibold tracking-[0.08em] sm:text-2xl" style={{ color: 'var(--text)' }}>
-                Aureus Wealth Desk
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-4">
+              <Link to="/" className="text-xl font-semibold tracking-[0.08em] sm:text-2xl whitespace-nowrap" style={{ color: 'var(--text)' }}>
+                MarketPulse AI
               </Link>
-              <span className="hidden text-[0.7rem] font-medium uppercase tracking-[0.2em] sm:inline" style={{ color: 'var(--gold)' }}>
-                Private Markets Platform
-              </span>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between lg:w-auto lg:gap-5">
-              <nav className="flex flex-wrap items-center gap-1">
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-5">
+              <nav className="flex flex-1 flex-nowrap items-center gap-1 overflow-x-auto whitespace-nowrap">
                 {navItems.map((item) => (
                   <NavLink
                     key={item.to}
@@ -37,7 +35,7 @@ export function Layout() {
                   </NavLink>
                 ))}
               </nav>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <ThemeToggle />
                 <UserMenu />
               </div>

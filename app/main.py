@@ -4,6 +4,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.api import routes as api_routes
 from app.api.routes import router
+from app.api.routes_ai_chat import router as ai_chat_router
 from app.api.routes_settings import router as settings_router
 from app.core.auth import TokenVerificationMiddleware
 from app.core.config import get_settings
@@ -12,7 +13,7 @@ from app.db.base import Base
 from app.db.schema_guard import ensure_alerts_schema, ensure_training_runs_schema
 from app.db.session import AsyncSessionLocal, engine
 # Import all models so Base.metadata includes them
-from app.models import alert_history, price_alert, price_record, training_run, user_profile, user_settings  # noqa: F401
+from app.models import alert_history, chat_history, price_alert, price_record, training_run, user_profile, user_settings  # noqa: F401
 from app.workers.whatsapp_alert_worker import whatsapp_alert_worker
 
 settings = get_settings()
@@ -32,6 +33,7 @@ app.add_middleware(
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
 app.add_middleware(TokenVerificationMiddleware)
 app.include_router(router, prefix="/api")
+app.include_router(ai_chat_router, prefix="/api")
 app.include_router(settings_router, prefix="/api")
 try:
     from app.api.auth_routes import router as auth_router

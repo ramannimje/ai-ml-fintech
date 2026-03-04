@@ -255,3 +255,39 @@ class UserSettingsUpdateRequest(BaseModel):
     enable_xgboost: Optional[bool] = None
     auto_retrain: Optional[bool] = None
     theme_preference: Optional[Literal["light", "dark", "system"]] = None
+
+
+class AIChatRequest(BaseModel):
+    message: str = Field(min_length=2, max_length=4000)
+
+
+class AIChatResponse(BaseModel):
+    answer: str
+    intent: Literal[
+        "market_summary",
+        "price_forecast",
+        "historical_trend_analysis",
+        "commodity_comparison",
+        "region_comparison",
+        "trading_outlook",
+        "volatility_explanation",
+    ]
+    region: Literal["india", "us", "europe"]
+    commodity: Optional[Literal["gold", "silver", "crude_oil", "natural_gas", "copper"]] = None
+    horizon_days: int = Field(ge=1, le=1095)
+    generated_at: datetime
+
+
+class AIProviderStatusResponse(BaseModel):
+    provider: Literal["openai", "gemini", "ollama", "disabled"]
+    openai_model: str
+    openai_fallback_models: list[str]
+    openai_api_key_present: bool
+    openai_cooldown_seconds_remaining: int = Field(ge=0)
+    last_openai_error: Optional[str] = None
+    gemini_model: str
+    gemini_fallback_models: list[str]
+    gemini_api_key_present: bool
+    gemini_cooldown_seconds_remaining: int = Field(ge=0)
+    last_gemini_error: Optional[str] = None
+    gemini_discovered_model: Optional[str] = None

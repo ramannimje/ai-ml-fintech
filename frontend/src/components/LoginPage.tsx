@@ -2,10 +2,11 @@ import { useMemo } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 import { useQuery } from '@tanstack/react-query';
 import { client } from '../api/client';
+import { resolveAuthCallbackUrl } from '../lib/auth';
 
 export function LoginPage() {
   const { loginWithRedirect } = useAuth0();
-  const redirectUri = import.meta.env.VITE_AUTH0_CALLBACK_URL || window.location.origin;
+  const redirectUri = resolveAuthCallbackUrl(import.meta.env.VITE_AUTH0_CALLBACK_URL);
 
   const liveTeaser = useQuery({
     queryKey: ['public-live-prices-india'],

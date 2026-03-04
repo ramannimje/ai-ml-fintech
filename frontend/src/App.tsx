@@ -6,6 +6,7 @@ import { Layout } from './components/layout';
 import { LoginPage } from './components/LoginPage';
 import { setAccessTokenGetter } from './api/client';
 import { CommodityPage } from './pages/commodity';
+import { AIChatPage } from './pages/chat';
 import { DashboardPage } from './pages/dashboard';
 import { MetricsPage } from './pages/metrics';
 import { ProfilePage } from './pages/profile';
@@ -19,6 +20,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <DashboardPage /> },
       { path: 'commodity/:name', element: <CommodityPage /> },
+      { path: 'chat', element: <AIChatPage /> },
       { path: 'train', element: <TrainPage /> },
       { path: 'metrics', element: <MetricsPage /> },
       { path: 'profile', element: <ProfilePage /> },
