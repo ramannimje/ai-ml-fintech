@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import httpx
 
 from app.core.config import get_settings
+from app.core.secrets import AUTH_SECRETS, get_secret_value
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,30 @@ class WhatsAppDeliveryResult:
 
 
 class WhatsAppService:
+    @staticmethod
+    def _twilio_account_sid() -> str | None:
+        return get_secret_value(AUTH_SECRETS, "TWILIO_ACCOUNT_SID", env_fallback="TWILIO_ACCOUNT_SID")
+
+    @staticmethod
+    def _twilio_auth_token() -> str | None:
+        return get_secret_value(AUTH_SECRETS, "TWILIO_AUTH_TOKEN", env_fallback="TWILIO_AUTH_TOKEN")
+
+    @staticmethod
+    def _twilio_whatsapp_number() -> str | None:
+        return get_secret_value(AUTH_SECRETS, "TWILIO_WHATSAPP_NUMBER", env_fallback="TWILIO_WHATSAPP_NUMBER")
+
+    @staticmethod
+    def _whatsapp_meta_access_token() -> str | None:
+        return get_secret_value(AUTH_SECRETS, "WHATSAPP_META_ACCESS_TOKEN", env_fallback="WHATSAPP_META_ACCESS_TOKEN")
+
+    @staticmethod
+    def _whatsapp_meta_phone_number_id() -> str | None:
+        return get_secret_value(
+            AUTH_SECRETS,
+            "WHATSAPP_META_PHONE_NUMBER_ID",
+            env_fallback="WHATSAPP_META_PHONE_NUMBER_ID",
+        )
+
     @staticmethod
     def _normalize_twilio_number(number: str) -> str:
         value = number.strip()
@@ -35,12 +60,15 @@ class WhatsAppService:
 
     async def _send_via_twilio(self, to_number: str, message: str) -> WhatsAppDeliveryResult:
         settings = get_settings()
-        if not settings.twilio_account_sid or not settings.twilio_auth_token or not settings.twilio_whatsapp_number:
+        twilio_account_sid = self._twilio_account_sid()
+        twilio_auth_token = self._twilio_auth_token()
+        twilio_whatsapp_number = self._twilio_whatsapp_number()
+        if not twilio_account_sid or not twilio_auth_token or not twilio_whatsapp_number:
             return WhatsAppDeliveryResult(status="skipped:no-twilio-config", provider="twilio")
 
-        url = f"https://api.twilio.com/2010-04-01/Accounts/{settings.twilio_account_sid}/Messages.json"
+        url = f"https://api.twilio.com/2010-04-01/Accounts/{twilio_account_sid}/Messages.json"
         payload = {
-            "From": self._normalize_twilio_number(settings.twilio_whatsapp_number),
+            "From": self._normalize_twilio_number(twilio_whatsapp_number),
             "To": self._normalize_twilio_number(to_number),
             "Body": message,
         }
@@ -52,7 +80,7 @@ class WhatsAppService:
                     resp = await client.post(
                         url,
                         data=payload,
-                        auth=(settings.twilio_account_sid, settings.twilio_auth_token),
+                        auth=(twilio_account_sid, twilio_auth_token),
                     )
                 if resp.status_code < 300:
                     return WhatsAppDeliveryResult(status="sent", provider="twilio", attempts=attempts)
@@ -69,12 +97,14 @@ class WhatsAppService:
 
     async def _send_via_meta(self, to_number: str, message: str) -> WhatsAppDeliveryResult:
         settings = get_settings()
-        if not settings.whatsapp_meta_access_token or not settings.whatsapp_meta_phone_number_id:
+        whatsapp_meta_access_token = self._whatsapp_meta_access_token()
+        whatsapp_meta_phone_number_id = self._whatsapp_meta_phone_number_id()
+        if not whatsapp_meta_access_token or not whatsapp_meta_phone_number_id:
             return WhatsAppDeliveryResult(status="skipped:no-meta-config", provider="meta")
 
         url = (
             f"https://graph.facebook.com/{settings.whatsapp_meta_api_version}/"
-            f"{settings.whatsapp_meta_phone_number_id}/messages"
+            f"{whatsapp_meta_phone_number_id}/messages"
         )
         payload = {
             "messaging_product": "whatsapp",
@@ -91,7 +121,7 @@ class WhatsAppService:
                     resp = await client.post(
                         url,
                         headers={
-                            "Authorization": f"Bearer {settings.whatsapp_meta_access_token}",
+                            "Authorization": f"Bearer {whatsapp_meta_access_token}",
                             "Content-Type": "application/json",
                         },
                         json=payload,

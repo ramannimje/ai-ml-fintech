@@ -45,7 +45,7 @@ profile_service = ProfileService()
 settings_service = SettingsService()
 
 REGION_CATALOG = [
-    RegionDefinition(id="india", currency="INR", unit="10g_24k"),
+    RegionDefinition(id="india", currency="INR", unit="10g"),
     RegionDefinition(id="us", currency="USD", unit="oz"),
     RegionDefinition(id="europe", currency="EUR", unit="exchange_standard"),
 ]

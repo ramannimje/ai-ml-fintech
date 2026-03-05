@@ -30,10 +30,10 @@ from ml.features.engineer import add_features, make_supervised
 from ml.inference.artifacts import load_model, save_model
 
 SUPPORTED_COMMODITIES = ("gold", "silver", "crude_oil")
-REGION_UNITS = {
-    "india": "10g_24k",
-    "us": "oz",
-    "europe": "exchange_standard",
+COMMODITY_REGION_UNITS = {
+    "gold": {"india": "10g_24k", "us": "oz", "europe": "exchange_standard"},
+    "silver": {"india": "10g", "us": "oz", "europe": "exchange_standard"},
+    "crude_oil": {"india": "barrel", "us": "barrel", "europe": "barrel"},
 }
 PRIMARY_SOURCE_BY_COMMODITY = {
     "gold": "comex",
@@ -73,6 +73,10 @@ class CommodityService:
                 f"Unsupported region: {region!r}. Must be one of: {self.settings.supported_regions}"
             )
         return out
+
+    @staticmethod
+    def _unit_for(commodity: str, region: str) -> str:
+        return COMMODITY_REGION_UNITS.get(commodity, {}).get(region, REGION_UNIT.get(region, "unit"))
 
     def _to_regional_price(self, usd_per_troy_oz: float, region: str, fx: dict[str, float]) -> float:
         # Convert from canonical USD/troy_oz feed into region unit/currency without extra multipliers.
@@ -156,7 +160,7 @@ class CommodityService:
                         LivePriceResponse(
                             commodity=commodity,
                             region=reg,
-                            unit=REGION_UNITS[reg],
+                            unit=self._unit_for(commodity, reg),
                             currency=REGION_CURRENCY[reg],
                             live_price=round(price, 4),
                             source='metals.live',
@@ -180,7 +184,7 @@ class CommodityService:
                         LivePriceResponse(
                             commodity=commodity,
                             region=reg,
-                            unit=REGION_UNITS[reg],
+                            unit=self._unit_for(commodity, reg),
                             currency=REGION_CURRENCY[reg],
                             live_price=round(price, 4),
                             source=source,
@@ -207,7 +211,7 @@ class CommodityService:
                         LivePriceResponse(
                             commodity=commodity,
                             region=reg,
-                            unit=REGION_UNITS[reg],
+                            unit=self._unit_for(commodity, reg),
                             currency=REGION_CURRENCY[reg],
                             live_price=price,
                             source='placeholder',
@@ -270,7 +274,7 @@ class CommodityService:
             commodity=commodity,
             region=region,
             currency=REGION_CURRENCY[region],
-            unit=REGION_UNITS[region],
+            unit=self._unit_for(commodity, region),
             rows=len(points),
             data=points,
         )
@@ -430,7 +434,7 @@ class CommodityService:
             response = RegionalPredictionResponse(
                 commodity=commodity,
                 region=region,
-                unit=REGION_UNITS[region],
+                unit=self._unit_for(commodity, region),
                 currency=REGION_CURRENCY[region],
                 forecast_horizon=(datetime.now(timezone.utc) + timedelta(days=horizon)).date(),
                 point_forecast=round(point_forecast, 4),
@@ -472,7 +476,7 @@ class CommodityService:
             response = RegionalPredictionResponse(
                 commodity=commodity,
                 region=region,
-                unit=REGION_UNITS[region],
+                unit=self._unit_for(commodity, region),
                 currency=REGION_CURRENCY[region],
                 forecast_horizon=(datetime.now(timezone.utc) + timedelta(days=horizon)).date(),
                 point_forecast=round(point_forecast, 4),

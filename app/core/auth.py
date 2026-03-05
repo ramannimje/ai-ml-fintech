@@ -12,6 +12,7 @@ from starlette.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import get_settings
+from app.core.secrets import AUTH_SECRETS, get_secret_value
 
 try:
     from jose import JWTError, jwt  # type: ignore
@@ -63,6 +64,12 @@ def _audience() -> str:
 
 def create_app_jwt(user_claims: dict[str, Any]) -> str:
     settings = _settings()
+    jwt_secret = get_secret_value(
+        AUTH_SECRETS,
+        "JWT_SECRET",
+        env_fallback="SECRET_KEY",
+        default=settings.secret_key or "dev-insecure-jwt-secret",
+    )
     now = int(time.time())
     payload = {
         "sub": user_claims.get("sub"),
@@ -75,7 +82,7 @@ def create_app_jwt(user_claims: dict[str, Any]) -> str:
         "aud": "ai-ml-fintech-frontend",
     }
     if JOSE_AVAILABLE:
-        return jwt.encode(payload, settings.secret_key, algorithm="HS256")
+        return jwt.encode(payload, jwt_secret, algorithm="HS256")
 
     # Development fallback when python-jose isn't installed.
     header = {"alg": "none", "typ": "JWT"}
@@ -86,12 +93,18 @@ def create_app_jwt(user_claims: dict[str, Any]) -> str:
 
 def _decode_app_jwt(token: str) -> dict[str, Any]:
     settings = _settings()
+    jwt_secret = get_secret_value(
+        AUTH_SECRETS,
+        "JWT_SECRET",
+        env_fallback="SECRET_KEY",
+        default=settings.secret_key or "dev-insecure-jwt-secret",
+    )
     if not JOSE_AVAILABLE:
         return _decode_unverified_payload(token)
     try:
         return jwt.decode(
             token,
-            settings.secret_key,
+            jwt_secret,
             algorithms=["HS256"],
             audience="ai-ml-fintech-frontend",
             issuer="ai-ml-fintech",

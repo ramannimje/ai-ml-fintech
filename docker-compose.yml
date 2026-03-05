@@ -4,9 +4,16 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/commodity
       DATA_CACHE_DIR: backend/ml/cache
       ARTIFACT_DIR: backend/ml/artifacts
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-commodity}
+      INFISICAL_PROJECT_ID: ${INFISICAL_PROJECT_ID}
+      INFISICAL_ENV: ${INFISICAL_ENV:-dev}
+      INFISICAL_TOKEN: ${INFISICAL_TOKEN:-}
+      INFISICAL_CLIENT_ID: ${INFISICAL_CLIENT_ID:-}
+      INFISICAL_CLIENT_SECRET: ${INFISICAL_CLIENT_SECRET:-}
+      INFISICAL_API_URL: ${INFISICAL_API_URL:-}
     depends_on:
       - postgres
     healthcheck:
@@ -30,9 +37,9 @@ services:
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_DB: commodity
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-commodity}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
       - pgdata:/var/lib/postgresql/data
 

@@ -35,6 +35,7 @@ Browser
 Nginx (single entrypoint :80)
   ├── /      -> Frontend (React + Vite)
   └── /api/* -> Backend (FastAPI + ML services)
+                    ├── Infisical Secrets (runtime retrieval via CLI)
                     ├── PostgreSQL metadata (training_runs)
                     └── Model/data artifacts on filesystem
 ```
@@ -72,6 +73,21 @@ XGBoost can be disabled for constrained runtimes via `DISABLE_XGBOOST=true`.
 
 ```bash
 cp .env.example .env
+```
+
+Sensitive values are no longer stored in `.env`. Configure Infisical runtime auth variables (`INFISICAL_PROJECT_ID`, `INFISICAL_ENV`, and either `INFISICAL_TOKEN` or `INFISICAL_CLIENT_ID` + `INFISICAL_CLIENT_SECRET`), then store secrets by path:
+
+- `/ai`: `OPENAI_API_KEY`, `GEMINI_API_KEY`, optional AI/news keys
+- `/database`: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, optional `POSTGRES_DB`
+- `/email`: `SENDGRID_API_KEY`, `RESEND_API_KEY`
+- `/auth`: `AUTH0_SECRET`, `JWT_SECRET`, and optional messaging/auth credentials
+
+Example CLI writes:
+
+```bash
+infisical secrets set OPENAI_API_KEY=... --projectId=<project-id> --env=dev --path=/ai
+infisical secrets set POSTGRES_PASSWORD=... --projectId=<project-id> --env=dev --path=/database
+infisical secrets set JWT_SECRET=... --projectId=<project-id> --env=dev --path=/auth
 ```
 
 ### 2) Run full stack (recommended)
@@ -158,6 +174,7 @@ make lint     # frontend eslint + typecheck
 ## Detailed Documentation
 
 - See `docs/PLATFORM.md` for architecture, model/data flow, source logic, env setup, retraining, swagger checks, tests, and troubleshooting.
+- Runtime secret retrieval is implemented in `app/services/vault_service.py` using Infisical CLI commands.
 
 ## Screenshots
 

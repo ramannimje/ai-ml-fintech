@@ -7,6 +7,7 @@ import re
 import httpx
 
 from app.core.config import get_settings
+from app.core.secrets import AI_SECRETS, get_secret_value
 from app.schemas.responses import CommodityNewsSummaryResponse, NewsHeadline
 
 DEFAULT_HEADLINES = {
@@ -42,6 +43,14 @@ BEARISH_WORDS = {"fall", "falls", "down", "drop", "drops", "bearish", "slump", "
 
 
 class CommodityNewsService:
+    @staticmethod
+    def _newsapi_key() -> str | None:
+        return get_secret_value(AI_SECRETS, "NEWSAPI_KEY", env_fallback="NEWSAPI_KEY")
+
+    @staticmethod
+    def _anthropic_api_key() -> str | None:
+        return get_secret_value(AI_SECRETS, "ANTHROPIC_API_KEY", env_fallback="ANTHROPIC_API_KEY")
+
     async def summarize(self, commodity: str) -> CommodityNewsSummaryResponse:
         headlines = await self._fetch_headlines(commodity)
         summary, sentiment = await self._summarize_with_claude(commodity, headlines)
@@ -59,8 +68,8 @@ class CommodityNewsService:
         )
 
     async def _fetch_headlines(self, commodity: str) -> list[NewsHeadline]:
-        settings = get_settings()
-        if settings.newsapi_key:
+        newsapi_key = self._newsapi_key()
+        if newsapi_key:
             try:
                 async with httpx.AsyncClient(timeout=12.0) as client:
                     response = await client.get(
@@ -70,7 +79,7 @@ class CommodityNewsService:
                             "language": "en",
                             "sortBy": "publishedAt",
                             "pageSize": 6,
-                            "apiKey": settings.newsapi_key,
+                            "apiKey": newsapi_key,
                         },
                     )
                 if response.status_code == 200:
@@ -103,7 +112,8 @@ class CommodityNewsService:
 
     async def _summarize_with_claude(self, commodity: str, headlines: list[NewsHeadline]) -> tuple[str, str]:
         settings = get_settings()
-        if not settings.anthropic_api_key:
+        anthropic_api_key = self._anthropic_api_key()
+        if not anthropic_api_key:
             return "", ""
 
         title_lines = "\n".join(f"- {h.title}" for h in headlines[:6])
@@ -119,7 +129,7 @@ class CommodityNewsService:
                 response = await client.post(
                     "https://api.anthropic.com/v1/messages",
                     headers={
-                        "x-api-key": settings.anthropic_api_key,
+                        "x-api-key": anthropic_api_key,
                         "anthropic-version": "2023-06-01",
                         "content-type": "application/json",
                     },

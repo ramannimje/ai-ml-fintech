@@ -11,6 +11,7 @@ from starlette.responses import JSONResponse
 
 from app.core.auth import create_app_jwt, get_current_user
 from app.core.config import get_settings
+from app.core.secrets import AUTH_SECRETS, get_secret_value
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 oauth = OAuth()
@@ -23,10 +24,16 @@ def _register_auth0_client() -> None:
         return
 
     settings = get_settings()
+    auth0_client_secret = get_secret_value(
+        AUTH_SECRETS,
+        "AUTH0_SECRET",
+        env_fallback="AUTH0_CLIENT_SECRET",
+        default=settings.auth0_client_secret,
+    )
     oauth.register(
         name="auth0",
         client_id=settings.auth0_client_id,
-        client_secret=settings.auth0_client_secret,
+        client_secret=auth0_client_secret,
         server_metadata_url=f"https://{settings.auth0_domain}/.well-known/openid-configuration",
         client_kwargs={"scope": "openid profile email"},
     )

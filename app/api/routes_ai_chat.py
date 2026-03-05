@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import get_current_user
 from app.db.session import get_session
 from app.schemas.responses import AIChatRequest, AIChatResponse, AIProviderStatusResponse
-from app.services.ai_chat_service import AIChatService
+from app.services.ai_chat_service import AIChatService, AIProviderUnavailableError
 from app.services.profile_service import ProfileService
 from app.services.rate_limiter import RedisRateLimiter
 
@@ -39,12 +39,15 @@ async def ai_chat(
         picture_url=current_user.get("picture"),
         user_context=current_user,
     )
-    return await chat_service.ask(
-        session=session,
-        user_id=user_sub,
-        message=payload.message,
-        preferred_region=profile.preferred_region,
-    )
+    try:
+        return await chat_service.ask(
+            session=session,
+            user_id=user_sub,
+            message=payload.message,
+            preferred_region=profile.preferred_region,
+        )
+    except AIProviderUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=f"Gemini unavailable: {exc}") from exc
 
 
 @router.post("/ai/chat/stream")
@@ -66,12 +69,15 @@ async def ai_chat_stream(
         picture_url=current_user.get("picture"),
         user_context=current_user,
     )
-    response = await chat_service.ask(
-        session=session,
-        user_id=user_sub,
-        message=payload.message,
-        preferred_region=profile.preferred_region,
-    )
+    try:
+        response = await chat_service.ask(
+            session=session,
+            user_id=user_sub,
+            message=payload.message,
+            preferred_region=profile.preferred_region,
+        )
+    except AIProviderUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=f"Gemini unavailable: {exc}") from exc
 
     async def event_stream():
         text = response.answer
@@ -86,8 +92,5 @@ async def ai_chat_stream(
 
 
 @router.get("/ai/provider-status", response_model=AIProviderStatusResponse)
-async def ai_provider_status(
-    current_user: dict = Depends(get_current_user),
-) -> AIProviderStatusResponse:
-    _ = current_user
+async def ai_provider_status() -> AIProviderStatusResponse:
     return AIProviderStatusResponse(**chat_service.provider_status())

@@ -13,8 +13,14 @@ from app.schemas.responses import (
     TrainResponse,
 )
 from app.api import routes
+from app.services.commodity_service import CommodityService
 
 client = TestClient(app)
+
+
+def test_silver_india_unit_is_10g() -> None:
+    service = CommodityService()
+    assert service._unit_for("silver", "india") == "10g"
 
 
 def test_live_price_success(monkeypatch) -> None:

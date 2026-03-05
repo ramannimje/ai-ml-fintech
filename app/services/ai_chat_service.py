@@ -9,11 +9,16 @@ import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.secrets import AI_SECRETS, get_secret_value
 from app.models.chat_history import ChatHistory
 from app.schemas.responses import AIChatResponse
 from app.services.ai_reasoning_engine import AIReasoningEngine
 
 logger = logging.getLogger(__name__)
+
+
+class AIProviderUnavailableError(RuntimeError):
+    pass
 
 
 class AIChatService:
@@ -24,10 +29,27 @@ class AIChatService:
     _gemini_discovered_model: str | None = None
     _gemini_discovered_model_checked_at: datetime | None = None
     _gemini_available_models: list[str] | None = None
+    _advisory_failure_message = "We are unable to generate an advisory response at the moment. Please try again."
 
     def __init__(self) -> None:
         self.settings = get_settings()
         self.engine = AIReasoningEngine()
+
+    @staticmethod
+    def _openai_api_key() -> str | None:
+        return get_secret_value(AI_SECRETS, "OPENAI_API_KEY", env_fallback="OPENAI_API_KEY")
+
+    @staticmethod
+    def _gemini_api_key() -> str | None:
+        return get_secret_value(AI_SECRETS, "GEMINI_API_KEY", env_fallback="GEMINI_API_KEY")
+
+    @staticmethod
+    def _system_prompt_for(query_context: dict[str, Any]) -> str:
+        return (
+            "You are a commodities market analyst. Use only supplied facts. "
+            "Answer the user's message directly and naturally from the provided context. "
+            "Do not rely on fixed templates or hardcoded phrase rules; choose structure based on the question."
+        )
 
     async def ask(
         self,
@@ -36,17 +58,26 @@ class AIChatService:
         message: str,
         preferred_region: str = "us",
     ) -> AIChatResponse:
+        clean_message = message.strip()
         query = await self.engine.build_context(
             session=session,
             user_id=user_id,
-            message=message,
+            message=clean_message,
             preferred_region=preferred_region,
         )
         data_context = await self.engine.build_data_context(session=session, query=query)
-        fallback_answer = self.engine.generate_answer(query=query, data=data_context)
-        answer = await self._maybe_llm_refine(self._query_to_dict(query), data_context, fallback_answer)
+        query_context = self._query_to_dict(query)
+        if self.isAdvisoryQuestion(clean_message):
+            answer = await self._gemini_advisory_answer(
+                question=clean_message,
+                query_context=query_context,
+                data_context=data_context,
+            )
+        else:
+            fallback_answer = self.engine.generate_answer(query=query, data=data_context)
+            answer = await self._maybe_llm_refine(query_context, data_context, fallback_answer)
 
-        session.add(ChatHistory(user_id=user_id, message=message.strip(), response=answer))
+        session.add(ChatHistory(user_id=user_id, message=clean_message, response=answer))
         await session.commit()
 
         return AIChatResponse(
@@ -57,6 +88,67 @@ class AIChatService:
             horizon_days=query.horizon_days,
             generated_at=datetime.now(timezone.utc),
         )
+
+    @staticmethod
+    def isAdvisoryQuestion(question: str) -> bool:
+        text = question.lower()
+        advisory_tokens = (
+            "invest",
+            "buy",
+            "sell",
+            "hold",
+            "should i",
+            "good time",
+            "entry price",
+            "exit price",
+            "forecast",
+        )
+        return any(token in text for token in advisory_tokens)
+
+    async def _gemini_advisory_answer(
+        self,
+        question: str,
+        query_context: dict[str, Any],
+        data_context: dict[str, Any],
+    ) -> str:
+        system_prompt = (
+            "You are a commodities market analyst specializing in precious metals and macroeconomic signals.\n\n"
+            "Your task is to answer investor questions using the market data provided.\n\n"
+            "Rules:\n"
+            "1. Base your reasoning strictly on the supplied market data.\n"
+            "2. Do not produce generic financial advice.\n"
+            "3. Explain the reasoning behind the recommendation.\n"
+            "4. Consider trend strength, volatility, macro factors, and momentum.\n"
+            "5. Clearly discuss both upside and downside risk.\n"
+            "6. Provide a practical interpretation for retail investors.\n"
+            "7. Do not use templated responses or fixed phrases.\n\n"
+            "Your response must include:\n"
+            "- Short market interpretation\n"
+            "- Investment outlook (bullish, neutral, cautious)\n"
+            "- Risk considerations\n"
+            "- Practical takeaway"
+        )
+        prompt = self._build_advisory_prompt(
+            question=question,
+            query_context=query_context,
+            data_context=data_context,
+        )
+        answer = await self._gemini_generate_content(
+            system_prompt=system_prompt,
+            prompt=prompt,
+            use_model_cache=False,
+        )
+        if answer:
+            logger.info(
+                "Gemini advisory response generated",
+                extra={"question": question, "llmUsed": True},
+            )
+            return answer
+        logger.warning(
+            "Gemini advisory response failed",
+            extra={"question": question, "llmUsed": False, "error": self._gemini_last_error},
+        )
+        return self._advisory_failure_message
 
     async def _maybe_llm_refine(
         self,
@@ -70,13 +162,17 @@ class AIChatService:
         if provider == "openai":
             return await self._openai_refine(query_context, data_context, fallback_answer)
         if provider == "gemini":
-            return await self._gemini_refine(query_context, data_context, fallback_answer)
+            refined = await self._gemini_refine(query_context, data_context, fallback_answer)
+            if refined == fallback_answer:
+                raise AIProviderUnavailableError(self._gemini_last_error or "Gemini response unavailable")
+            return refined
         if provider == "ollama":
             return await self._ollama_refine(query_context, data_context, fallback_answer)
         return fallback_answer
 
     async def _openai_refine(self, query_context: dict[str, Any], data_context: dict[str, Any], fallback_answer: str) -> str:
-        if not self.settings.openai_api_key:
+        openai_api_key = self._openai_api_key()
+        if not openai_api_key:
             self._openai_last_error = "OPENAI_API_KEY is missing"
             return fallback_answer
         now = datetime.now(timezone.utc)
@@ -95,14 +191,11 @@ class AIChatService:
                 model_candidates.append(model)
         model_candidates = model_candidates[:2]
 
-        system_prompt = (
-            "You are a commodities market analyst. Use only supplied facts. "
-            "Keep sections: Current Market, Trend Analysis, Forecast (if present), Key Drivers, Market Signal."
-        )
+        system_prompt = self._system_prompt_for(query_context)
         try:
             async with httpx.AsyncClient(timeout=20.0) as client:
                 headers = {
-                    "Authorization": f"Bearer {self.settings.openai_api_key}",
+                    "Authorization": f"Bearer {openai_api_key}",
                     "Content-Type": "application/json",
                 }
 
@@ -192,25 +285,25 @@ class AIChatService:
             return fallback_answer
 
     async def _gemini_refine(self, query_context: dict[str, Any], data_context: dict[str, Any], fallback_answer: str) -> str:
-        if not self.settings.gemini_api_key:
+        system_prompt = self._system_prompt_for(query_context)
+        prompt = self._build_refinement_prompt(query_context, data_context, fallback_answer)
+        text = await self._gemini_generate_content(system_prompt=system_prompt, prompt=prompt, use_model_cache=True)
+        return text or fallback_answer
+
+    async def _gemini_generate_content(self, system_prompt: str, prompt: str, use_model_cache: bool) -> str:
+        gemini_api_key = self._gemini_api_key()
+        if not gemini_api_key:
             self._gemini_last_error = "GEMINI_API_KEY is missing"
-            return fallback_answer
+            return ""
         now = datetime.now(timezone.utc)
         if self._gemini_cooldown_until and now < self._gemini_cooldown_until:
             self._gemini_last_error = "Gemini in cooldown after rate limit"
-            return fallback_answer
-
-        prompt = self._build_refinement_prompt(query_context, data_context, fallback_answer)
-        available_models = await self._get_gemini_available_models()
+            return ""
+        available_models = await self._get_gemini_available_models(use_cache=use_model_cache)
         model_candidates = self._select_gemini_candidates(available_models)
         if not model_candidates:
             self._gemini_last_error = "No Gemini generateContent model available"
-            return fallback_answer
-
-        system_prompt = (
-            "You are a commodities market analyst. Use only supplied facts. "
-            "Keep sections: Current Market, Trend Analysis, Forecast (if present), Key Drivers, Market Signal."
-        )
+            return ""
         try:
             async with httpx.AsyncClient(timeout=20.0) as client:
                 for model in model_candidates:
@@ -219,7 +312,7 @@ class AIChatService:
                         endpoint,
                         headers={
                             "Content-Type": "application/json",
-                            "x-goog-api-key": self.settings.gemini_api_key,
+                            "x-goog-api-key": gemini_api_key,
                         },
                         json={
                             "system_instruction": {
@@ -243,7 +336,7 @@ class AIChatService:
                         self._set_gemini_cooldown(seconds=self._cooldown_from_rate_limit(response, default_seconds=300))
                         self._gemini_last_error = "Gemini rate limited"
                         logger.warning("gemini_rate_limited model=%s", model)
-                        return fallback_answer
+                        return ""
                     elif self._is_gemini_model_not_found(response):
                         self._gemini_last_error = f"Gemini model '{model}' unavailable"
                         logger.warning("gemini_model_not_found model=%s", model)
@@ -255,25 +348,27 @@ class AIChatService:
         except Exception:
             self._gemini_last_error = "Gemini request exception"
             logger.exception("gemini_refine_exception")
-            return fallback_answer
+            return ""
         self._gemini_last_error = "Gemini model unavailable or unsupported"
-        return fallback_answer
+        return ""
 
-    async def _get_gemini_available_models(self) -> list[str]:
+    async def _get_gemini_available_models(self, use_cache: bool = True) -> list[str]:
         now = datetime.now(timezone.utc)
         if (
-            self._gemini_available_models is not None
+            use_cache
+            and self._gemini_available_models is not None
             and self._gemini_discovered_model_checked_at
             and (now - self._gemini_discovered_model_checked_at).total_seconds() < 3600
         ):
             return self._gemini_available_models
-        if not self.settings.gemini_api_key:
+        gemini_api_key = self._gemini_api_key()
+        if not gemini_api_key:
             return []
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.get(
                     "https://generativelanguage.googleapis.com/v1beta/models",
-                    headers={"x-goog-api-key": self.settings.gemini_api_key},
+                    headers={"x-goog-api-key": gemini_api_key},
                 )
             if resp.status_code >= 300:
                 self._gemini_last_error = f"Gemini model list failed ({resp.status_code})"
@@ -303,6 +398,59 @@ class AIChatService:
             "draft_answer": fallback_answer,
         }
         return json.dumps(serializable_context, default=str, ensure_ascii=True)
+
+    @staticmethod
+    def _build_advisory_prompt(
+        question: str,
+        query_context: dict[str, Any],
+        data_context: dict[str, Any],
+    ) -> str:
+        commodity = str(query_context.get("commodity", "commodity")).replace("_", " ").title()
+        current = data_context.get("current_price") or {}
+        trend = data_context.get("historical_trend") or {}
+        signal = str(trend.get("signal_text", "neutral"))
+        momentum = data_context.get("regional_market_signal", "unavailable")
+        price = current.get("price", "N/A")
+        currency = current.get("currency", "")
+        unit = current.get("unit", "")
+        volatility = trend.get("volatility_pct", data_context.get("volatility", "N/A"))
+        change = trend.get("change_pct", "N/A")
+
+        market_context = (
+            f"Commodity: {commodity}\n"
+            f"Current Price: {price} {currency} per {unit}\n"
+            f"Price Change (Trend Strength): {change}%\n"
+            f"Volatility: {volatility}%\n"
+            f"Market Signal: {signal}\n"
+            f"Regional Momentum Leader: {momentum}\n"
+        )
+        market_drivers = (
+            "Market Drivers:\n"
+            "- Industrial demand\n"
+            "- Currency fluctuations\n"
+            "- Interest rate expectations\n"
+            "- Inflation outlook\n"
+        )
+        reasoning = (
+            "Analyze the situation step by step:\n"
+            "1. Interpret the current price trend.\n"
+            "2. Evaluate the volatility and what it means for short-term risk.\n"
+            "3. Explain what the market signal suggests.\n"
+            "4. Consider macro drivers like industrial demand and currency.\n"
+            "5. Provide an investment interpretation based on these signals.\n\n"
+            "Answer in clear paragraphs rather than bullet lists.\n"
+            "Avoid repeating the same phrases across responses."
+        )
+        return (
+            f"User Question: {question}\n\n"
+            "Market Data:\n"
+            f"{market_context}\n"
+            f"{market_drivers}\n"
+            "Instructions for Gemini:\n"
+            "Provide a natural analytical answer explaining whether the user should consider investing now. "
+            "Discuss risk, volatility, and possible scenarios. Do not use generic disclaimers or template phrases.\n\n"
+            f"{reasoning}"
+        )
 
     @staticmethod
     def _query_to_dict(query: Any) -> dict[str, Any]:
@@ -447,12 +595,12 @@ class AIChatService:
             "provider": provider,
             "openai_model": self.settings.openai_chat_model,
             "openai_fallback_models": openai_fallback_models,
-            "openai_api_key_present": bool(self.settings.openai_api_key),
+            "openai_api_key_present": bool(self._openai_api_key()),
             "openai_cooldown_seconds_remaining": max(0, openai_cooldown_remaining),
             "last_openai_error": self._openai_last_error,
             "gemini_model": self.settings.gemini_model,
             "gemini_fallback_models": gemini_fallback_models,
-            "gemini_api_key_present": bool(self.settings.gemini_api_key),
+            "gemini_api_key_present": bool(self._gemini_api_key()),
             "gemini_cooldown_seconds_remaining": max(0, gemini_cooldown_remaining),
             "last_gemini_error": self._gemini_last_error,
             "gemini_discovered_model": self._gemini_discovered_model,

@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.schemas.responses import AIChatResponse, UserProfileResponse
 from app.api import routes_ai_chat
+from app.services.ai_chat_service import AIProviderUnavailableError
 
 client = TestClient(app)
 
@@ -141,3 +142,42 @@ def test_ai_provider_status(monkeypatch) -> None:
     assert payload["provider"] == "gemini"
     assert payload["openai_model"] == "gpt-5.2"
     assert payload["gemini_model"] == "gemini-1.5-pro"
+
+
+def test_ai_chat_returns_503_when_gemini_unavailable(monkeypatch) -> None:
+    async def _mock_profile(
+        session,
+        user_sub: str,
+        user_email: str | None,
+        user_name: str | None,
+        picture_url: str | None,
+        user_context=None,
+    ):
+        _ = session, user_email, user_name, picture_url, user_context
+        return UserProfileResponse(
+            user_sub=user_sub,
+            email="test@example.com",
+            name="Test User",
+            picture_url=None,
+            preferred_region="us",
+            email_notifications_enabled=True,
+            alert_cooldown_minutes=30,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+
+    async def _mock_allow(key: str, limit: int, window_seconds: int) -> bool:
+        _ = key, limit, window_seconds
+        return True
+
+    async def _mock_ask(session, user_id: str, message: str, preferred_region: str):
+        _ = session, user_id, message, preferred_region
+        raise AIProviderUnavailableError("GEMINI_API_KEY is missing")
+
+    monkeypatch.setattr(routes_ai_chat.profile_service, "get_or_create", _mock_profile)
+    monkeypatch.setattr(routes_ai_chat.limiter, "allow", _mock_allow)
+    monkeypatch.setattr(routes_ai_chat.chat_service, "ask", _mock_ask)
+
+    response = client.post("/api/ai/chat", json={"message": "predict the gold price in 2026 end"})
+    assert response.status_code == 503
+    assert "Gemini unavailable" in response.json()["detail"]

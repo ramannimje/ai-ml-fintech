@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import httpx
 
 from app.core.config import get_settings
+from app.core.secrets import EMAIL_SECRETS, get_secret_value
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,14 @@ class EmailDeliveryResult:
 
 
 class EmailService:
+    @staticmethod
+    def _resend_api_key() -> str | None:
+        return get_secret_value(EMAIL_SECRETS, "RESEND_API_KEY", env_fallback="RESEND_API_KEY")
+
+    @staticmethod
+    def _sendgrid_api_key() -> str | None:
+        return get_secret_value(EMAIL_SECRETS, "SENDGRID_API_KEY", env_fallback="SENDGRID_API_KEY")
+
     def _render_html(self, subject: str, message: str, market_context: str) -> str:
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         return (
@@ -41,6 +50,7 @@ class EmailService:
         html_message: str,
     ) -> EmailDeliveryResult:
         settings = get_settings()
+        resend_api_key = self._resend_api_key()
         attempts = 0
         for _ in range(3):
             attempts += 1
@@ -49,7 +59,7 @@ class EmailService:
                     response = await client.post(
                         "https://api.resend.com/emails",
                         headers={
-                            "Authorization": f"Bearer {settings.resend_api_key}",
+                            "Authorization": f"Bearer {resend_api_key}",
                             "Content-Type": "application/json",
                         },
                         json={
@@ -89,6 +99,7 @@ class EmailService:
         html_message: str,
     ) -> EmailDeliveryResult:
         settings = get_settings()
+        sendgrid_api_key = self._sendgrid_api_key()
         attempts = 0
         for _ in range(3):
             attempts += 1
@@ -97,7 +108,7 @@ class EmailService:
                     response = await client.post(
                         "https://api.sendgrid.com/v3/mail/send",
                         headers={
-                            "Authorization": f"Bearer {settings.sendgrid_api_key}",
+                            "Authorization": f"Bearer {sendgrid_api_key}",
                             "Content-Type": "application/json",
                         },
                         json={
@@ -147,13 +158,13 @@ class EmailService:
         settings = get_settings()
         html_message = self._render_html(subject, message, market_context)
 
-        if settings.resend_api_key:
+        if self._resend_api_key():
             result = await self._send_with_resend(to_email, subject, message, html_message)
             if result.status == "sent":
                 return result
             logger.warning("Resend failed status=%s error=%s", result.status, result.error)
 
-        if settings.sendgrid_api_key:
+        if self._sendgrid_api_key():
             result = await self._send_with_sendgrid(to_email, subject, message, html_message)
             if result.status == "sent":
                 return result

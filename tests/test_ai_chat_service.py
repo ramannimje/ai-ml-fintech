@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 
-from app.services.ai_reasoning_engine import AIReasoningEngine
+from app.services.ai_reasoning_engine import AIReasoningEngine, QueryContext
 
 
 class _ScalarResult:
@@ -101,3 +101,66 @@ def test_follow_up_context_carries_commodity() -> None:
     )
     assert context.commodity == "silver"
     assert context.target_date is not None
+
+
+def test_intent_understanding_investment_query_maps_to_trading_outlook() -> None:
+    engine = AIReasoningEngine()
+    context = asyncio.run(
+        engine.build_context(
+            session=_SessionStub(),  # type: ignore[arg-type]
+            user_id="u1",
+            message="Should I invest in silver?",
+            preferred_region="india",
+        )
+    )
+    assert context.intent == "trading_outlook"
+    assert context.commodity == "silver"
+
+
+def test_intent_understanding_shall_i_invest_maps_to_trading_outlook() -> None:
+    engine = AIReasoningEngine()
+    context = asyncio.run(
+        engine.build_context(
+            session=_SessionStub(),  # type: ignore[arg-type]
+            user_id="u1",
+            message="shall I invest in silver now?",
+            preferred_region="india",
+        )
+    )
+    assert context.intent == "trading_outlook"
+    assert context.commodity == "silver"
+
+
+def test_trading_outlook_includes_investment_view_section() -> None:
+    engine = AIReasoningEngine()
+    query = QueryContext(
+        message="Should I invest in silver?",
+        intent="trading_outlook",
+        commodity="silver",
+        comparison_commodity=None,
+        region="india",
+        comparison_region=None,
+        horizon_days=30,
+        target_date=None,
+        is_long_term=False,
+        concise=False,
+    )
+    text = engine.generate_answer(
+        query=query,
+        data={
+            "current_price": {"price": 2558.65, "currency": "INR", "unit": "10g"},
+            "historical_trend": {
+                "change_pct": 12.3,
+                "volatility_pct": 1.6,
+                "volatility_label": "moderate",
+                "direction": "bullish",
+                "signal_text": "moderately bullish",
+                "avg_return": 0.01,
+            },
+            "prediction": {"point": 2650.0, "low": 2480.0, "high": 2810.0, "currency": "INR", "basis": "test-model"},
+            "long_term_projection": None,
+            "regional_market_signal": "Gold leads momentum (+2.10%)",
+        },
+    )
+    assert "Investment View" in text
+    assert "Bias:" in text

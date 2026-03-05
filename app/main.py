@@ -8,6 +8,7 @@ from app.api.routes_ai_chat import router as ai_chat_router
 from app.api.routes_settings import router as settings_router
 from app.core.auth import TokenVerificationMiddleware
 from app.core.config import get_settings
+from app.core.secrets import AUTH_SECRETS, get_secret_value
 from app.core.logging import setup_logging
 from app.db.base import Base
 from app.db.schema_guard import ensure_alerts_schema, ensure_training_runs_schema
@@ -17,6 +18,12 @@ from app.models import alert_history, chat_history, price_alert, price_record, t
 from app.workers.whatsapp_alert_worker import whatsapp_alert_worker
 
 settings = get_settings()
+session_secret = get_secret_value(
+    AUTH_SECRETS,
+    "JWT_SECRET",
+    env_fallback="SECRET_KEY",
+    default=settings.secret_key or "dev-insecure-session-secret",
+)
 setup_logging()
 app = FastAPI(
     title=settings.app_name,
@@ -30,7 +37,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
+app.add_middleware(SessionMiddleware, secret_key=session_secret or "dev-insecure-session-secret")
 app.add_middleware(TokenVerificationMiddleware)
 app.include_router(router, prefix="/api")
 app.include_router(ai_chat_router, prefix="/api")

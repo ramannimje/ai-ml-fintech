@@ -235,6 +235,15 @@ class AIReasoningEngine:
                 f"{long_term['low']:.2f} - {long_term['high']:.2f} {current['currency']} "
                 f"with midpoint {long_term['mid']:.2f}."
             )
+        if query.intent == "trading_outlook":
+            outlook = self._investment_view(trend=trend, prediction=prediction)
+            lines.append("")
+            lines.append("Investment View")
+            lines.append(
+                f"Bias: {outlook['stance']}. Confidence: {outlook['confidence']}. "
+                f"Rationale: {outlook['rationale']}"
+            )
+            lines.append(f"Risk note: {outlook['risk_note']}")
 
         lines.append("")
         lines.append("Key Drivers")
@@ -368,8 +377,6 @@ class AIReasoningEngine:
             return "commodity_comparison"
         if any(word in text for word in ("forecast", "predict", "will", "price in", "target", "future", "by ")):
             return "price_forecast"
-        if any(word in text for word in ("outlook", "bullish", "bearish", "best commodity", "best to watch")):
-            return "trading_outlook"
         if any(word in text for word in ("volatility", "volatile", "spike", "sudden move")):
             return "volatility_explanation"
         if any(word in text for word in ("historical", "history", "trend", "chart")):
@@ -549,6 +556,42 @@ class AIReasoningEngine:
             return "insufficient cross-commodity signal"
         top = ranked[0]
         return f"{self._label(str(top['commodity']))} leads momentum ({float(top['change_pct']):+.2f}%)"
+
+    def _investment_view(self, trend: dict[str, Any], prediction: dict[str, Any] | None) -> dict[str, str]:
+        direction = str(trend.get("direction", "neutral"))
+        volatility = str(trend.get("volatility_label", "moderate"))
+        change_pct = float(trend.get("change_pct", 0.0))
+
+        stance = "Hold / Wait"
+        confidence = "medium"
+        rationale = "Trend is not decisive enough for aggressive positioning."
+        risk_note = "Informational analysis only; not personalized financial advice."
+
+        if direction == "bullish" and change_pct > 2 and volatility in {"low", "moderate"}:
+            stance = "Buy-on-dips"
+            confidence = "medium-high"
+            rationale = "Momentum is positive and volatility is manageable."
+        elif direction == "bearish" and change_pct < -2:
+            stance = "Avoid new longs"
+            confidence = "medium"
+            rationale = "Downtrend pressure remains active."
+
+        if prediction:
+            point = float(prediction.get("point", 0.0))
+            low = float(prediction.get("low", 0.0))
+            high = float(prediction.get("high", 0.0))
+            if point > 0:
+                width = (high - low) / point
+                if width > 0.25:
+                    confidence = "low-medium"
+                    risk_note = "Forecast range is wide; use smaller position size and strict risk control."
+
+        return {
+            "stance": stance,
+            "confidence": confidence,
+            "rationale": rationale,
+            "risk_note": risk_note,
+        }
 
     def _drivers(self, commodity: str, direction: str, volatility_label: str) -> list[str]:
         common = [
