@@ -12,6 +12,7 @@ import { MetricsPage } from './pages/metrics';
 import { ProfilePage } from './pages/profile';
 import { SettingsPage } from './pages/settings';
 import { TrainPage } from './pages/train';
+import { AboutPage } from './pages/about';
 
 const router = createBrowserRouter([
   {
@@ -25,6 +26,7 @@ const router = createBrowserRouter([
       { path: 'metrics', element: <MetricsPage /> },
       { path: 'profile', element: <ProfilePage /> },
       { path: 'settings', element: <SettingsPage /> },
+      { path: 'about', element: <AboutPage /> },
     ],
   },
 ]);
