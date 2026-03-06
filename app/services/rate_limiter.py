@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from urllib.parse import parse_qs, urlparse
 
 from app.core.config import get_settings
 
@@ -23,7 +24,14 @@ class RedisRateLimiter:
 
         if self._client is None:
             settings = get_settings()
-            self._client = redis.from_url(settings.redis_url, decode_responses=True)
+            parsed = urlparse(settings.redis_url)
+            query = parse_qs(parsed.query)
+            use_tls = parsed.scheme == "rediss" or query.get("ssl", ["false"])[0].lower() == "true"
+            self._client = redis.from_url(
+                settings.redis_url,
+                decode_responses=True,
+                ssl=use_tls,
+            )
 
         try:
             current = await self._client.incr(key)

@@ -36,7 +36,7 @@ export function LoginPage() {
     <div className="min-h-screen px-4 py-10" style={{ background: 'linear-gradient(145deg, #040b18, #0a1731)' }}>
       <div className="mx-auto grid min-h-[88vh] max-w-6xl items-center gap-6 lg:grid-cols-[1.1fr,0.9fr]">
         <section className="panel rounded-2xl p-8 md:p-10" style={{ background: 'linear-gradient(145deg, rgba(8,26,54,0.96), rgba(13,42,87,0.95))', borderColor: 'rgba(215,184,108,0.28)' }}>
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">Aureus Wealth Desk</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">TradeSight</p>
           <h1 className="mt-4 text-4xl font-semibold leading-tight text-white sm:text-5xl">A private commodity intelligence platform for disciplined capital decisions.</h1>
           <p className="mt-4 max-w-xl text-sm leading-relaxed" style={{ color: '#d5e0f4' }}>
             Access live bullion and energy feeds, AI scenario forecasts, and risk alerts in one institutional-grade workspace.

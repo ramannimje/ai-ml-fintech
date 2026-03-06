@@ -63,7 +63,7 @@ def _err(code: str, message: str, **context: str) -> dict:
 
 @router.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
-    return HealthResponse(status="ok", timestamp=datetime.now(timezone.utc))
+    return HealthResponse(status="ok")
 
 
 @router.get("/regions", response_model=list[RegionDefinition])

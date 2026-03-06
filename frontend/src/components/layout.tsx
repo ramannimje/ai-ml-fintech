@@ -19,7 +19,7 @@ export function Layout() {
           <div className="flex items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-4">
               <Link to="/" className="text-xl font-semibold tracking-[0.08em] sm:text-2xl whitespace-nowrap" style={{ color: 'var(--text)' }}>
-                MarketPulse AI
+                TradeSight
               </Link>
             </div>
             <div className="flex min-w-0 flex-1 items-center justify-end gap-5">

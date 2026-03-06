@@ -6,7 +6,6 @@ from pydantic import field_validator
 
 class HealthResponse(BaseModel):
     status: str
-    timestamp: datetime
 
 
 class ErrorDetail(BaseModel):

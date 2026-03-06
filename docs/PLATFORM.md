@@ -1,98 +1,123 @@
-# AI Commodity Predictor Platform Notes
+# Platform Notes
 
-## Architecture Diagram
-
-```text
-React + TS + Tailwind (frontend)
-            |
-            v
-        Nginx :80
-     /api/*      / 
-      |          |
-      v          v
-  FastAPI + ML   Vite build
-      |
-      v
-SQLite/Postgres metadata + local model/data artifacts
-```
-
-## Data Flow Diagram
+## Runtime Architecture
 
 ```text
-Primary bullion feed intent: LBMA/MCX/COMEX
-Operational fallback: Yahoo Finance
-            |
-            v
-    Canonical USD/oz prices
-            |
-            v
-     FX conversion layer
-     (ECB -> fallback FX API -> stale cache)
-            |
-            v
- Region-adjusted outputs (INR 10g_24k / USD oz / EUR exchange_standard)
+Browser
+  |
+  v
+Nginx (:80)
+  |- /        -> Frontend (Vite/React)
+  '- /api/*   -> FastAPI (`app.main`)
+                   |- SQLAlchemy (SQLite/Postgres)
+                   |- Commodity/ML services
+                   |- Alert services (email/whatsapp)
+                   '- AI chat service (Gemini/OpenAI/Ollama)
 ```
 
-## Model Flow
+## Data + Forecasting Flow
 
-1. Fetch region-tagged historical OHLC.
-2. Build features including `fx_volatility`, `inflation_proxy`, `interest_rates_fred_ecb_rbi`.
-3. Train region-specific model (benchmarks include `chronos_bolt` when installed and `ENABLE_CHRONOS_BOLT=true`, plus tree/neural/Prophet baselines).
-4. Validate with walk-forward split.
-5. Persist artifact + training metadata.
-6. Predict to fixed horizon `2026-12-31` with bull/base/bear scenarios.
+1. Fetch market data (primary + fallback providers)
+2. Normalize to region-specific units/currency
+3. Build historical features and trend metrics
+4. Run prediction model (`gold`, `silver`, `crude_oil`) with horizon `1..90`
+5. Return point forecast + confidence interval + scenarios
 
-## Live Price Source Explanation
+## Supported Regions and Units
 
-- Live endpoint uses market close from commodity symbols and reports source metadata (`comex/yahoo_finance` or fallback path).
-- Pricing values are never hardcoded.
-- FX conversion is real-time with 60s TTL cache.
+- `india` -> `INR`, `10g`
+- `us` -> `USD`, `oz`
+- `europe` -> `EUR`, `exchange_standard`
 
-## Region Unit Logic
+## API Groups
 
-- `india`: `INR`, `10g_24k`
-- `us`: `USD`, `oz`
-- `europe`: `EUR`, `exchange_standard`
+Market:
 
-## Prediction Methodology
+- `/api/health`
+- `/api/regions`
+- `/api/commodities`
+- `/api/live-prices`
+- `/api/live-prices/{region}`
+- `/api/public/live-prices/{region}`
+- `/api/historical/{commodity}/{region}`
+- `/api/predict/{commodity}/{region}`
+- `/api/train/{commodity}/{region}`
+- `/api/news-summary/{commodity}`
 
-- Point forecast from latest trained region model.
-- Confidence interval from model RMSE envelope.
-- Scenario output:
-  - Bull: `+6%`
-  - Base: `point_forecast`
-  - Bear: `-6%`
+AI:
 
-## Environment Config
+- `/api/ai/chat`
+- `/api/ai/chat/stream`
+- `/api/ai/provider-status`
 
-- `DATABASE_URL`
-- `DATA_CACHE_DIR`
-- `ARTIFACT_DIR`
-- `FX_API_URL` (optional fallback override)
+User/Alerts:
 
-## API Keys Required
+- `/api/profile` (GET/PUT)
+- `/api/settings` (GET/POST)
+- `/api/alerts` (CRUD)
+- `/api/alerts/whatsapp`
+- `/api/alerts/history`
+- `/api/alerts/history/export`
+- `/api/alerts/evaluate`
 
-- None mandatory for fallback mode (`yfinance`, public ECB feed, public fallback FX API).
+Auth:
 
-## Retrain Steps
+- `/api/auth/login`
+- `/api/auth/callback`
+- `/api/auth/logout`
+- `/api/auth/me`
 
-1. `POST /api/train/{commodity}/{region}?horizon=30`
-2. Verify `model_version` in response.
-3. Query prediction endpoint for updated outputs.
+## AI Advisory Behavior (Current)
 
-## Swagger Validation
+Advisory-intent questions (buy/sell/invest/hold/entry/exit/forecast timing) follow this path:
 
-1. Start backend.
-2. Open `/docs`.
-3. Validate all five target routes return schema-compliant payloads.
+1. Build user + market context
+2. Build dynamic advisory prompt
+3. Call Gemini directly
+4. Return Gemini output
 
-## Test Instructions
+Template-based advisory answers are not returned for advisory queries.
 
-- Backend: `pytest -q tests`
-- Frontend: `cd frontend && npm test`
+On Gemini advisory failure, response text is fixed:
 
-## Troubleshooting
+`We are unable to generate an advisory response at the moment. Please try again.`
 
-- FX failures: service falls back ECB -> fallback API -> stale cache.
-- Empty live data: verify outbound internet access for market feeds.
-- Missing artifacts: ensure `ARTIFACT_DIR` writable and retrain endpoint succeeds.
+## Secrets and Configuration
+
+Secret resolution order:
+
+1. Infisical via `VaultService`
+2. Environment fallback
+3. Default value (if provided)
+
+Namespaces in `app/core/secrets.py`:
+
+- `AI_SECRETS` -> `/ai`
+- `DB_SECRETS` -> `/database`
+- `EMAIL_SECRETS` -> `/email`
+- `AUTH_SECRETS` -> `/auth`
+
+Infisical runtime config keys:
+
+- `INFISICAL_PROJECT_ID`, `INFISICAL_ENV`
+- `INFISICAL_TOKEN` or `INFISICAL_CLIENT_ID` + `INFISICAL_CLIENT_SECRET`
+- Optional tuning: cache/refresh/retry settings in `.env.example`
+
+## Dev Commands
+
+```bash
+# backend
+uvicorn app.main:app --reload --port 8000
+
+# frontend
+cd frontend && npm run dev
+
+# tests
+pytest -q
+```
+
+## Operational Notes
+
+- AI chat endpoints are rate-limited per user key.
+- Background WhatsApp alert worker starts on app startup when enabled.
+- Database schema guards run at startup for alerts/training tables.

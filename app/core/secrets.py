@@ -1,6 +1,4 @@
 from __future__ import annotations
-
-import os
 from collections.abc import Iterator, Mapping
 
 from app.services.vault_service import VaultService
@@ -53,12 +51,13 @@ def get_secret_value(
     default: str | None = None,
     force_refresh: bool = False,
 ) -> str | None:
-    data = namespace.read(force_refresh=force_refresh)
-    value = data.get(key)
-    if value:
-        return value
+    fallback_keys: list[str] = []
     if env_fallback:
-        env_value = os.getenv(env_fallback)
-        if env_value:
-            return env_value
-    return default
+        fallback_keys.append(env_fallback)
+    return vault.get_value(
+        path=_SECRET_PATHS[namespace.namespace],
+        key=key,
+        env_fallbacks=fallback_keys,
+        default=default,
+        force_refresh=force_refresh,
+    )

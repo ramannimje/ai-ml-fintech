@@ -6,6 +6,11 @@ __pycache__/
 *.sqlite
 .env
 .env.*
+!.env.example
+!.env.local
+!.env.production
+!frontend/.env.local
+!frontend/.env.production
 mlruns/
 .terraform/
 terraform.tfstate*
@@ -23,5 +28,4 @@ ml/cache/
 ml/artifacts/
 backend/backend/
 commodity.db
-!.env.example
 frontend/*.tsbuildinfo

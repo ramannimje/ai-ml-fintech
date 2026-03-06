@@ -228,7 +228,7 @@ class CommodityService:
             return {}
 
         try:
-            async with httpx.AsyncClient(timeout=10.0, headers={"User-Agent": "ai-commodity-predictor/1.0"}) as client:
+            async with httpx.AsyncClient(timeout=10.0, headers={"User-Agent": "tradesight/1.0"}) as client:
                 resp = await client.get("https://api.metals.live/v1/spot")
             resp.raise_for_status()
             raw_data = resp.json()

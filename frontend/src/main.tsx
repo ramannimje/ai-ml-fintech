@@ -12,10 +12,12 @@ const authDomain = import.meta.env.VITE_AUTH0_DOMAIN || __AUTH0_DOMAIN__ || '';
 const authClientId = import.meta.env.VITE_AUTH0_CLIENT_ID || __AUTH0_CLIENT_ID__ || '';
 const authAudience = import.meta.env.VITE_AUTH0_AUDIENCE || __AUTH0_AUDIENCE__;
 const authCallbackUrl = resolveAuthCallbackUrl(import.meta.env.VITE_AUTH0_CALLBACK_URL);
+const hasPlaceholderAuth0 = authDomain.includes('your-tenant.auth0.com') || authClientId.includes('your-client-id');
+const isAuthConfigured = !!authDomain && !!authClientId && !hasPlaceholderAuth0;
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {authDomain && authClientId ? (
+    {isAuthConfigured ? (
       <Auth0Provider
         domain={authDomain}
         clientId={authClientId}

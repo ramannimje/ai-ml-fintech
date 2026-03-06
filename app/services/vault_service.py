@@ -21,8 +21,21 @@ class _CacheEntry:
 
 class VaultService:
     def __init__(self) -> None:
-        env_file = os.getenv("INFISICAL_ENV_FILE", ".env")
+        configured_env_file = os.getenv("INFISICAL_ENV_FILE")
+        environment_mode = os.getenv("ENVIRONMENT", "local").strip().lower() or "local"
+        if configured_env_file:
+            env_file = configured_env_file
+        elif environment_mode == "production":
+            env_file = ".env.production"
+        else:
+            env_file = ".env.local"
+            if not os.path.exists(env_file):
+                env_file = ".env"
         self._file_env = dotenv_values(env_file)
+        self._fallback_file_env = (
+            {} if configured_env_file else (dotenv_values(".env") if env_file != ".env" else {})
+        )
+        self.app_environment = self._get_config("ENVIRONMENT", environment_mode or "local").lower() or "local"
         self.project_id = self._get_config("INFISICAL_PROJECT_ID")
         self.environment = self._get_config("INFISICAL_ENV", "dev") or "dev"
         self.token = self._get_config("INFISICAL_TOKEN")
@@ -53,6 +66,10 @@ class VaultService:
             return
         self.authenticate()
         self._start_background_loops()
+
+    @property
+    def is_production(self) -> bool:
+        return self.app_environment == "production"
 
     @property
     def enabled(self) -> bool:
@@ -196,6 +213,8 @@ class VaultService:
                 "ANTHROPIC_API_KEY",
             ],
             "database": [
+                "DATABASE_URL",
+                "REDIS_URL",
                 "POSTGRES_USER",
                 "POSTGRES_PASSWORD",
                 "POSTGRES_HOST",
@@ -206,6 +225,9 @@ class VaultService:
                 "RESEND_API_KEY",
             ],
             "auth": [
+                "AUTH0_DOMAIN",
+                "AUTH0_CLIENT_ID",
+                "AUTH0_CLIENT_SECRET",
                 "AUTH0_SECRET",
                 "JWT_SECRET",
                 "TWILIO_ACCOUNT_SID",
@@ -272,11 +294,44 @@ class VaultService:
 
     def _get_config(self, key: str, default: str = "") -> str:
         value = os.getenv(key)
-        if value is not None:
+        if isinstance(value, str) and value.strip():
             return value.strip()
         file_value = self._file_env.get(key)
-        if isinstance(file_value, str):
+        if isinstance(file_value, str) and file_value.strip():
             return file_value.strip()
+        fallback_value = self._fallback_file_env.get(key)
+        if isinstance(fallback_value, str) and fallback_value.strip():
+            return fallback_value.strip()
+        return default
+
+    def get_value(
+        self,
+        *,
+        path: str,
+        key: str,
+        env_fallbacks: list[str] | None = None,
+        default: str | None = None,
+        force_refresh: bool = False,
+    ) -> str | None:
+        fallback_keys = env_fallbacks or []
+        if key not in fallback_keys:
+            fallback_keys = [*fallback_keys, key]
+
+        if self.enabled and self.is_production:
+            secret = self.get_secret(path, force_refresh=force_refresh).get(key)
+            if secret:
+                return secret
+
+        for env_key in fallback_keys:
+            value = self._get_config(env_key)
+            if value:
+                return value
+
+        # In local/dev environments, prefer local env vars but still use Infisical when available.
+        if self.enabled:
+            secret = self.get_secret(path, force_refresh=force_refresh).get(key)
+            if secret:
+                return secret
         return default
 
     @staticmethod

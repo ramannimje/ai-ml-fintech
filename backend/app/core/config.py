@@ -5,7 +5,7 @@ from app.core.secrets import DB_SECRETS, get_secret_value
 
 
 class Settings(BaseSettings):
-    app_name: str = "AI Commodity Predictor"
+    app_name: str = "TradeSight"
     environment: str = "dev"
     database_url: str | None = None
     data_cache_dir: str = "ml/cache"

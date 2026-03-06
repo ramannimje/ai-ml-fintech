@@ -67,8 +67,8 @@ def create_app_jwt(user_claims: dict[str, Any]) -> str:
     jwt_secret = get_secret_value(
         AUTH_SECRETS,
         "JWT_SECRET",
-        env_fallback="SECRET_KEY",
-        default=settings.secret_key or "dev-insecure-jwt-secret",
+        env_fallback="JWT_SECRET",
+        default=settings.jwt_secret or settings.secret_key or "dev-insecure-jwt-secret",
     )
     now = int(time.time())
     payload = {
@@ -78,8 +78,8 @@ def create_app_jwt(user_claims: dict[str, Any]) -> str:
         "picture": user_claims.get("picture"),
         "iat": now,
         "exp": now + 3600,
-        "iss": "ai-ml-fintech",
-        "aud": "ai-ml-fintech-frontend",
+        "iss": "tradesight",
+        "aud": "tradesight-frontend",
     }
     if JOSE_AVAILABLE:
         return jwt.encode(payload, jwt_secret, algorithm="HS256")
@@ -96,8 +96,8 @@ def _decode_app_jwt(token: str) -> dict[str, Any]:
     jwt_secret = get_secret_value(
         AUTH_SECRETS,
         "JWT_SECRET",
-        env_fallback="SECRET_KEY",
-        default=settings.secret_key or "dev-insecure-jwt-secret",
+        env_fallback="JWT_SECRET",
+        default=settings.jwt_secret or settings.secret_key or "dev-insecure-jwt-secret",
     )
     if not JOSE_AVAILABLE:
         return _decode_unverified_payload(token)
@@ -106,8 +106,8 @@ def _decode_app_jwt(token: str) -> dict[str, Any]:
             token,
             jwt_secret,
             algorithms=["HS256"],
-            audience="ai-ml-fintech-frontend",
-            issuer="ai-ml-fintech",
+            audience="tradesight-frontend",
+            issuer="tradesight",
         )
     except JWTError as exc:
         raise HTTPException(

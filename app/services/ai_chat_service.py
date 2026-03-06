@@ -162,10 +162,9 @@ class AIChatService:
         if provider == "openai":
             return await self._openai_refine(query_context, data_context, fallback_answer)
         if provider == "gemini":
-            refined = await self._gemini_refine(query_context, data_context, fallback_answer)
-            if refined == fallback_answer:
-                raise AIProviderUnavailableError(self._gemini_last_error or "Gemini response unavailable")
-            return refined
+            # Fail open for non-advisory responses: when Gemini is unavailable/rate-limited,
+            # continue with the deterministic engine answer instead of returning 503.
+            return await self._gemini_refine(query_context, data_context, fallback_answer)
         if provider == "ollama":
             return await self._ollama_refine(query_context, data_context, fallback_answer)
         return fallback_answer

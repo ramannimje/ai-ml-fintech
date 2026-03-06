@@ -18,21 +18,29 @@ from app.models import alert_history, chat_history, price_alert, price_record, t
 from app.workers.whatsapp_alert_worker import whatsapp_alert_worker
 
 settings = get_settings()
+configured_origins = [item.strip() for item in settings.cors_allowed_origins.split(",") if item.strip()]
+allow_origins = [
+    settings.frontend_url,
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    *configured_origins,
+]
 session_secret = get_secret_value(
     AUTH_SECRETS,
     "JWT_SECRET",
-    env_fallback="SECRET_KEY",
-    default=settings.secret_key or "dev-insecure-session-secret",
+    env_fallback="JWT_SECRET",
+    default=settings.jwt_secret or settings.secret_key or "dev-insecure-session-secret",
 )
 setup_logging()
 app = FastAPI(
     title=settings.app_name,
-    description="Multi-region commodity market intelligence platform",
+    description="TradeSight — Multi-region commodity market intelligence platform",
     version="2.0.0",
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url, "http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=list(dict.fromkeys(allow_origins)),
+    allow_origin_regex=settings.cors_allow_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

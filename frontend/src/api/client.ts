@@ -23,7 +23,8 @@ import type {
   WhatsAppAlert,
 } from '../types/api';
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || '/api';
+const envBaseURL = import.meta.env.VITE_API_BASE_URL?.trim();
+const baseURL = envBaseURL && envBaseURL.length > 0 ? envBaseURL : '/api';
 const api = axios.create({ baseURL });
 let tokenGetter: (() => Promise<string | undefined>) | null = null;
 

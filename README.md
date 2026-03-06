@@ -1,126 +1,126 @@
-# AI Commodity Predictor
+# TradeSight
 
-End-to-end commodity forecasting platform with a FastAPI backend and premium React frontend, served as one application through Nginx.
+AI-powered multi-region commodity market intelligence platform with a FastAPI backend, React frontend, model-driven forecasting, alerts, and Gemini-based advisory chat.
 
-## Monorepo Structure
+## Stack
 
-```text
-ai-commodity-predictor/
-├── backend/
-│   ├── app/
-│   ├── ml/
-│   ├── tests/
-│   ├── docker/
-│   ├── requirements.txt
-│   └── main.py
-├── frontend/
-│   ├── public/
-│   ├── src/
-│   ├── package.json
-│   └── vite.config.ts
-├── infra/
-│   ├── nginx/
-│   └── docker-compose.yml
-├── .env.example
-├── Makefile
-└── README.md
-```
+- Backend: FastAPI, SQLAlchemy (async), Pydantic, Redis, Auth0
+- Frontend: React + TypeScript + Vite + TanStack Query
+- ML/Data: pandas, yfinance, model artifacts in `ml/`
+- Secrets: Infisical via runtime `VaultService` (`app/services/vault_service.py`)
+- Deployment: Docker Compose + Nginx + Postgres
 
-## Architecture
+## Repository Layout
 
 ```text
-Browser
-  │
-  ▼
-Nginx (single entrypoint :80)
-  ├── /      -> Frontend (React + Vite)
-  └── /api/* -> Backend (FastAPI + ML services)
-                    ├── Infisical Secrets (runtime retrieval via CLI)
-                    ├── PostgreSQL metadata (training_runs)
-                    └── Model/data artifacts on filesystem
+app/                 FastAPI app (APIs, services, models)
+frontend/            React app
+ml/                  ML pipelines, artifacts, cached datasets
+infra/nginx/         Nginx config
+backend/             Docker/backend wrapper (`backend.main` -> `app.main`)
+tests/               Pytest suites
 ```
 
-## Frontend Stack
+## Key Functionality
 
-- React 18 + TypeScript + Vite
-- TailwindCSS + utility-first dark UI
-- TanStack Query (cache + fetch orchestration)
-- Zustand (theme persistence)
-- Recharts (market and prediction visuals)
-- React Router v6
-- Axios + Zod API client validation
-- Framer Motion animations
-- Vitest + ESLint + Typecheck
+- Live commodity pricing by region (`india`, `us`, `europe`)
+- Historical data and forecasting (`gold`, `silver`, `crude_oil`)
+- User profile + settings (preferred region, prediction horizon)
+- Alerts: email + WhatsApp, history, CSV export
+- News summaries per commodity
+- AI chat endpoints with provider abstraction (Gemini/OpenAI/Ollama)
+- Advisory query handling: advisory questions are generated directly by Gemini with dynamic market context
 
-## Backend API (proxied by Nginx)
+## AI Chat Behavior (Latest)
+
+For advisory-style questions (for example, buy/sell/invest/hold timing):
+
+1. Build market data context
+2. Construct a dynamic advisory prompt
+3. Call Gemini directly
+4. Return Gemini output
+
+No template response is used for advisory questions. If Gemini cannot respond, API returns:
+
+`We are unable to generate an advisory response at the moment. Please try again.`
+
+## API Surface (high level)
+
+Core:
 
 - `GET /api/health`
 - `GET /api/regions`
 - `GET /api/commodities`
 - `GET /api/live-prices`
 - `GET /api/live-prices/{region}`
-- `GET /api/historical/{commodity}/{region}?range=1m|6m|1y|5y|max`
-- `GET /api/predict/{commodity}/{region}?horizon=1..90`
-- `POST /api/train/{commodity}/{region}?horizon=1..90`
+- `GET /api/public/live-prices/{region}`
+- `GET /api/historical/{commodity}/{region}`
+- `GET /api/predict/{commodity}/{region}`
+- `POST /api/train/{commodity}/{region}`
 
-Model training benchmarks candidate regressors (dependency-aware): Chronos-Bolt, XGBoost, RandomForest, Prophet variants, and an MLP baseline.
-Chronos-Bolt benchmarking is opt-in via `ENABLE_CHRONOS_BOLT=true`.
-XGBoost can be disabled for constrained runtimes via `DISABLE_XGBOOST=true`.
+Alerts/Profile:
 
-## Local Setup
+- `POST /api/alerts`
+- `POST /api/alerts/whatsapp`
+- `GET /api/alerts`
+- `PATCH /api/alerts/{alert_id}`
+- `DELETE /api/alerts/{alert_id}`
+- `GET /api/alerts/history`
+- `GET /api/alerts/history/export`
+- `POST /api/alerts/evaluate`
+- `GET /api/profile`
+- `PUT /api/profile`
+- `GET /api/settings`
+- `POST /api/settings`
 
-### 1) Environment
+AI:
+
+- `POST /api/ai/chat`
+- `POST /api/ai/chat/stream`
+- `GET /api/ai/provider-status`
+
+Auth (if authlib installed):
+
+- `GET /api/auth/login`
+- `GET /api/auth/callback`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
+
+## Environment and Secrets
+
+1. Copy sample env:
 
 ```bash
 cp .env.example .env
 ```
 
-Sensitive values are no longer stored in `.env`. Configure Infisical runtime auth variables (`INFISICAL_PROJECT_ID`, `INFISICAL_ENV`, and either `INFISICAL_TOKEN` or `INFISICAL_CLIENT_ID` + `INFISICAL_CLIENT_SECRET`), then store secrets by path:
+2. Keep real secrets in local `.env` (never commit).
 
-- `/ai`: `OPENAI_API_KEY`, `GEMINI_API_KEY`, optional AI/news keys
-- `/database`: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, optional `POSTGRES_DB`
+3. For Infisical-backed secret loading, configure:
+
+- `INFISICAL_PROJECT_ID`
+- `INFISICAL_ENV`
+- Either `INFISICAL_TOKEN` or (`INFISICAL_CLIENT_ID` + `INFISICAL_CLIENT_SECRET`)
+
+4. Secrets are read by namespace paths:
+
+- `/ai`: `OPENAI_API_KEY`, `GEMINI_API_KEY`, ...
+- `/database`: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_DB`
 - `/email`: `SENDGRID_API_KEY`, `RESEND_API_KEY`
-- `/auth`: `AUTH0_SECRET`, `JWT_SECRET`, and optional messaging/auth credentials
+- `/auth`: `AUTH0_SECRET`, `JWT_SECRET`, messaging auth tokens
 
-Example CLI writes:
+## Run Locally
 
-```bash
-infisical secrets set OPENAI_API_KEY=... --projectId=<project-id> --env=dev --path=/ai
-infisical secrets set POSTGRES_PASSWORD=... --projectId=<project-id> --env=dev --path=/database
-infisical secrets set JWT_SECRET=... --projectId=<project-id> --env=dev --path=/auth
-```
-
-### 2) Run full stack (recommended)
+Backend:
 
 ```bash
-docker compose up --build
-```
-
-Open: `http://localhost/`
-
-### 3) Run backend locally (without Docker)
-
-```bash
-cd backend
 python3.12 -m venv .venv
 source .venv/bin/activate
-python -m pip install --upgrade pip
 pip install -r requirements.txt
-python -m uvicorn main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8000
 ```
 
-Backend API base URL: `http://127.0.0.1:8000/api`
-
-Quick checks:
-
-```bash
-curl -i http://127.0.0.1:8000/api/health
-curl -i http://127.0.0.1:8000/api/commodities
-```
-
-### 4) Run frontend locally (without Docker)
-
-Open a new terminal:
+Frontend:
 
 ```bash
 cd frontend
@@ -128,60 +128,29 @@ npm install
 npm run dev
 ```
 
-Open: `http://127.0.0.1:5173`
-
-Notes:
-
-- Vite dev server proxies `/api/*` to `http://127.0.0.1:8000`.
-- If running frontend from a different host/port setup, create `frontend/.env.local`:
+## Run with Docker Compose
 
 ```bash
-VITE_API_BASE_URL=http://127.0.0.1:8000/api
+docker compose up --build
 ```
 
-### 5) Run split dev mode via Make (optional)
+Nginx entrypoint: `http://localhost`
 
-Terminal A:
+## Tests
 
 ```bash
-make backend-dev
+source .venv/bin/activate
+pytest -q
 ```
 
-Terminal B:
+Targeted AI smoke tests:
 
 ```bash
-make frontend-dev
+pytest -q tests/test_ai_chat_api.py tests/test_resilience_sources.py
 ```
 
-## Developer Commands
+## Notes
 
-```bash
-make dev      # full stack via Docker
-make build    # frontend build + docker build
-make test     # backend pytest + frontend vitest
-make lint     # frontend eslint + typecheck
-```
-
-## How frontend talks to backend
-
-- All UI calls use `frontend/src/api/client.ts` with base URL `/api`.
-- Nginx routes `/api/*` to backend service.
-- React Query policies:
-  - Live prices: stale 60 seconds
-  - Historical: stale 10 minutes
-  - Predictions: no cache (stale 0)
-
-## Detailed Documentation
-
-- See `docs/PLATFORM.md` for architecture, model/data flow, source logic, env setup, retraining, swagger checks, tests, and troubleshooting.
-- Runtime secret retrieval is implemented in `app/services/vault_service.py` using Infisical CLI commands.
-
-## Screenshots
-
-- Dashboard: <img width="2878" height="1600" alt="image" src="https://github.com/user-attachments/assets/ab5dc3e3-5554-49d8-a183-b2e15e014102" />
-
-- Commodity detail: <img width="2878" height="1600" alt="image" src="https://github.com/user-attachments/assets/7f59366c-cc3c-4187-a9f7-f517dbdd7671" />
-
-- Train models: <img width="2878" height="1600" alt="image" src="https://github.com/user-attachments/assets/3be2fe3a-f5e7-4154-a7a5-4f623f471ce5" />
-
-- Metrics table: <img width="2878" height="1600" alt="image" src="https://github.com/user-attachments/assets/6567e94f-502f-428d-a8bc-1c3a7a6d9676" />
+- `/api/ai/chat` and `/api/ai/chat/stream` are rate-limited (`40 req / 60s` per user key).
+- Provider status endpoint helps debug model availability/cooldowns.
+- `VaultService` gracefully falls back to env vars if Infisical is unavailable.

@@ -132,7 +132,7 @@ describe('Frontend core', () => {
         <Layout />
       </MemoryRouter>,
     );
-    expect(view.getByText(/MarketPulse AI/i)).toBeInTheDocument();
+    expect(view.getByText(/TradeSight/i)).toBeInTheDocument();
   });
 
   it('chart_render', () => {
