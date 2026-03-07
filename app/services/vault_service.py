@@ -342,5 +342,6 @@ class VaultService:
             "secret not found",
             "no secret found",
             "secret does not exist",
+            "unsuccessful response",
         )
         return any(marker in stderr for marker in markers)

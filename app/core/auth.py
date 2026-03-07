@@ -34,6 +34,11 @@ def _settings():
 
 def _get_clean_domain() -> str:
     domain = _settings().auth0_domain
+    if not domain:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="AUTH0_DOMAIN is not configured in the environment or Infisical.",
+        )
     if domain.startswith("https://"):
         return domain[8:]
     if domain.startswith("http://"):
