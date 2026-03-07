@@ -47,6 +47,15 @@ app.add_middleware(
 )
 app.add_middleware(SessionMiddleware, secret_key=session_secret or "dev-insecure-session-secret")
 app.add_middleware(TokenVerificationMiddleware)
+@app.get("/")
+async def root():
+    return {
+        "status": "online",
+        "message": "TradeSight Backend is running 🚀",
+        "version": "2.0.0"
+    }
+
+
 app.include_router(router, prefix="/api")
 app.include_router(ai_chat_router, prefix="/api")
 app.include_router(settings_router, prefix="/api")

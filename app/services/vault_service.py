@@ -154,10 +154,11 @@ class VaultService:
                 return output
             except Exception as exc:
                 logger.warning(
-                    "infisical_secret_read_failed path=%s attempt=%s error=%s",
+                    "infisical_secret_read_failed path=%s attempt=%s error=%s msg=%s",
                     path,
                     attempt,
                     exc.__class__.__name__,
+                    str(exc),
                 )
                 if not self._try_recover_auth():
                     time.sleep(self.retry_backoff_seconds * attempt)
