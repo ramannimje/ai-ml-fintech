@@ -173,9 +173,17 @@ class CommodityService:
         # Fallback to yfinance (existing logic)
         for commodity in self.commodities:
             try:
-                raw = self.fetcher.get_historical(commodity, period="1d")
-                if raw.empty:
-                    raise TrainingError(f"No market data available for {commodity}")
+                try:
+                    raw = self.fetcher.get_historical(commodity, period="1d")
+                    if raw.empty:
+                        raise TrainingError(f"No 1d market data available for {commodity}")
+                except Exception as yf_exc:
+                    logger.warning("yfinance 1d fetch failed for %s (%s). Falling back to cached history.", commodity, str(yf_exc))
+                    # Fallback to any cached historical data if yfinance live fetch is rate limited
+                    raw = self.fetcher.get_historical(commodity, period="1y")
+                    if raw.empty:
+                        raise TrainingError(f"No cached market data available for {commodity}")
+
                 latest = float(raw["Close"].iloc[-1])
                 source = f"{PRIMARY_SOURCE_BY_COMMODITY.get(commodity, 'yahoo_finance')}/yahoo_finance"
                 for reg in regions:
