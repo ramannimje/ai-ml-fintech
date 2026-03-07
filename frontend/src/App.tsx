@@ -13,6 +13,8 @@ import { ProfilePage } from './pages/profile';
 import { SettingsPage } from './pages/settings';
 import { TrainPage } from './pages/train';
 import { AboutPage } from './pages/about';
+import { Logo } from './components/Logo';
+import { motion } from 'framer-motion';
 
 const router = createBrowserRouter([
   {
@@ -54,8 +56,30 @@ export default function App() {
     setAuthReady(true);
   }, [audience, getAccessTokenSilently, getIdTokenClaims, isAuthenticated]);
 
+  const LoadingScreen = ({ message }: { message: string }) => (
+    <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--bg)]" style={{ background: 'linear-gradient(145deg, var(--bg), var(--bg-accent))' }}>
+      <motion.div
+        animate={{ scale: [0.95, 1.05, 0.95], opacity: [0.7, 1, 0.7] }}
+        transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+        className="relative flex items-center justify-center rounded-2xl p-6 shadow-[var(--shadow)]"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+      >
+        <Logo size={48} />
+      </motion.div>
+      <motion.p
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="mt-6 text-sm font-medium tracking-wide"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        {message}
+      </motion.p>
+    </div>
+  );
+
   if (isLoading) {
-    return <div className="flex min-h-screen items-center justify-center text-sm">Loading authentication...</div>;
+    return <LoadingScreen message="Authenticating session..." />;
   }
 
   if (!isAuthenticated) {
@@ -63,7 +87,7 @@ export default function App() {
   }
 
   if (!authReady) {
-    return <div className="flex min-h-screen items-center justify-center text-sm">Preparing secure session...</div>;
+    return <LoadingScreen message="Securing connection..." />;
   }
 
   return (

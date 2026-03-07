@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { ThemeToggle } from './theme-toggle';
 import { UserMenu } from './UserMenu';
+import { Logo } from './Logo';
 
 const navItems = [
   { to: '/', label: 'Dashboard', end: true },
@@ -17,7 +18,8 @@ export function Layout() {
         <div className="shell-wrap py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-4">
-              <Link to="/" className="text-xl font-semibold tracking-[0.08em] sm:text-2xl whitespace-nowrap" style={{ color: 'var(--text)' }}>
+              <Link to="/" className="flex items-center gap-3 text-xl font-semibold tracking-[0.08em] sm:text-2xl whitespace-nowrap" style={{ color: 'var(--text)' }}>
+                <Logo size={26} />
                 TradeSight
               </Link>
             </div>

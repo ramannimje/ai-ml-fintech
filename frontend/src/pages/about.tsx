@@ -53,7 +53,7 @@ export function AboutPage() {
       >
         <p className="kpi-label text-accent">About TradeSight</p>
         <h1 className="shell-title mt-3">Intelligence that moves with the market.</h1>
-        <p className="shell-subtitle mt-3 max-w-3xl">
+        <p className="shell-subtitle mt-3">
           TradeSight is an AI-powered, multi-region commodity market intelligence platform built for disciplined capital decisions.
           It delivers real-time pricing, scenario forecasting, and advisory insights for gold, silver, and crude oil — across India, US, and Europe — in one institutional-grade workspace.
         </p>
