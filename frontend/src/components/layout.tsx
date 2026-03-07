@@ -8,8 +8,6 @@ const navItems = [
   { to: '/train', label: 'Model Studio' },
   { to: '/metrics', label: 'Market Metrics' },
   { to: '/profile', label: 'Client Profile' },
-  { to: '/settings', label: 'Settings' },
-  { to: '/about', label: 'About' },
 ];
 
 export function Layout() {

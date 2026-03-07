@@ -37,6 +37,9 @@ export function UserMenu() {
           <Link to="/profile" onClick={() => setOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:opacity-90">
             Profile
           </Link>
+          <Link to="/about" onClick={() => setOpen(false)} className="block rounded-lg px-3 py-2 text-left text-sm hover:opacity-90">
+            About
+          </Link>
           <Link to="/settings" onClick={() => setOpen(false)} className="block rounded-lg px-3 py-2 text-left text-sm hover:opacity-90">
             Settings
           </Link>

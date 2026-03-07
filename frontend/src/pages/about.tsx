@@ -117,7 +117,7 @@ export function AboutPage() {
                     <img
                       src={b.photo}
                       alt={`${b.name} profile`}
-                      className="h-full w-full object-cover grayscale transition duration-300 hover:grayscale-0"
+                      className="h-full w-full object-cover"
                     />
                   </div>
                   <div className="min-w-0 pt-0.5">
@@ -162,7 +162,7 @@ export function AboutPage() {
         <h2 className="text-2xl font-semibold" style={{ color: 'var(--text)' }}>
           Our Mission
         </h2>
-        <p className="mt-3 max-w-3xl text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+        <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
           We believe commodity intelligence should be accessible, transparent, and powered by the best of modern AI. TradeSight
           was built to give traders, analysts, and investors the same caliber of tooling that institutional desks rely on — without
           the complexity or cost. Every forecast, alert, and insight is designed to support confident, data-driven capital decisions.
