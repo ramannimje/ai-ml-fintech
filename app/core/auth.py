@@ -32,14 +32,21 @@ def _settings():
     return get_settings()
 
 
+def _get_clean_domain() -> str:
+    domain = _settings().auth0_domain
+    if domain.startswith("https://"):
+        return domain[8:]
+    if domain.startswith("http://"):
+        return domain[7:]
+    return domain
+
+
 def _issuer() -> str:
-    settings = _settings()
-    return f"https://{settings.auth0_domain}/"
+    return f"https://{_get_clean_domain()}/"
 
 
 def _jwks_url() -> str:
-    settings = _settings()
-    return f"https://{settings.auth0_domain}/.well-known/jwks.json"
+    return f"https://{_get_clean_domain()}/.well-known/jwks.json"
 
 
 async def _get_jwks() -> dict[str, Any]:
@@ -136,7 +143,7 @@ async def _decode_auth0_jwt(token: str) -> dict[str, Any]:
     if not key:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No matching JWKS key found")
 
-    audiences = [_audience(), f"https://{_settings().auth0_domain}/userinfo"]
+    audiences = [_audience(), f"https://{_get_clean_domain()}/userinfo"]
     for aud in audiences:
         try:
             return jwt.decode(
@@ -165,9 +172,9 @@ async def _decode_auth0_jwt(token: str) -> dict[str, Any]:
     token_aud = claims.get("aud")
     aud_ok = False
     if isinstance(token_aud, str):
-        aud_ok = token_aud in {client_id, f"https://{_settings().auth0_domain}/userinfo"}
+        aud_ok = token_aud in {client_id, f"https://{_get_clean_domain()}/userinfo"}
     elif isinstance(token_aud, list):
-        aud_ok = client_id in token_aud or f"https://{_settings().auth0_domain}/userinfo" in token_aud
+        aud_ok = client_id in token_aud or f"https://{_get_clean_domain()}/userinfo" in token_aud
 
     if not aud_ok and claims.get("azp") != client_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Auth0 token audience")
