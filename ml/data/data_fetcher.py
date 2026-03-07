@@ -152,6 +152,15 @@ class MarketDataFetcher:
             logger.warning("yahoo_http_failed symbol=%s error=%s", symbol, exc)
             return pd.DataFrame()
 
+    @staticmethod
+    def _period_to_min_days(period: str) -> int:
+        """Minimum days the cache must span for a given period to be adequate."""
+        mapping = {
+            "1d": 0, "5d": 3, "1m": 15, "1mo": 15, "3m": 60, "3mo": 60,
+            "6m": 120, "6mo": 120, "1y": 300, "2y": 600, "5y": 1200, "max": 1200,
+        }
+        return mapping.get(period, 0)
+
     def get_historical(self, commodity: str, period: str = "5y", region: str = "us") -> pd.DataFrame:
         """
         Fetch historical OHLCV data for a commodity.
@@ -173,9 +182,23 @@ class MarketDataFetcher:
             cached = pd.read_csv(legacy_path, parse_dates=["Date"])
 
         refresh_on_request = os.getenv("DATA_REFRESH_ON_REQUEST", "").strip().lower() in {"1", "true", "yes"}
+
+        # Check if cache is adequate for the requested period
+        cache_adequate = False
         if not cached.empty and not refresh_on_request:
-            filtered = self._apply_period_filter(cached, period)
-            return filtered[["Date", "Open", "High", "Low", "Close", "Volume"]].drop_duplicates("Date").sort_values("Date")
+            cached_days = (cached["Date"].max() - cached["Date"].min()).days
+            needed_days = self._period_to_min_days(period)
+            if cached_days >= needed_days:
+                cache_adequate = True
+                filtered = self._apply_period_filter(cached, period)
+                return filtered[["Date", "Open", "High", "Low", "Close", "Volume"]].drop_duplicates("Date").sort_values("Date")
+            else:
+                logger.info(
+                    "cache_inadequate commodity=%s cached_days=%d needed_days=%d period=%s — re-fetching",
+                    commodity, cached_days, needed_days, period,
+                )
+                # Treat inadequate cache as empty so we do a full fresh fetch
+                cached = pd.DataFrame()
 
         if cached.empty:
             # Try yfinance first, then fall back to direct HTTP
