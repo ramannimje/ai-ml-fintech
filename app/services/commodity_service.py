@@ -150,10 +150,13 @@ class CommodityService:
         out: list[LivePriceResponse] = []
 
         rates = await self._fetch_metals_live_rates()
+        fetched_commodities: set[str] = set()
+
         # Process rates for known commodities
         for commodity in self.commodities:
             price_usd = rates.get(commodity)
             if price_usd is not None:
+                fetched_commodities.add(commodity)
                 for reg in regions:
                     price = self._to_regional_price(price_usd, reg, fx)
                     out.append(
@@ -168,24 +171,44 @@ class CommodityService:
                         )
                     )
         # If we got results from free API, return them (skip yfinance)
-        if out:
+        if len(fetched_commodities) == len(self.commodities):
             return out
-        # Fallback to yfinance (existing logic)
-        for commodity in self.commodities:
+
+        # Direct HTTP Fetch Fallback from Yahoo Finance API (bypassing yfinance library rate limits)
+        if len(fetched_commodities) < len(self.commodities):
+            yf_rates = await self._fetch_yahoo_finance_live_rates()
+            for commodity in set(self.commodities) - fetched_commodities:
+                price_usd = yf_rates.get(commodity)
+                if price_usd is not None:
+                    fetched_commodities.add(commodity)
+                    source = f"{PRIMARY_SOURCE_BY_COMMODITY.get(commodity, 'yahoo_finance')}/yahoo_api"
+                    for reg in regions:
+                        price = self._to_regional_price(price_usd, reg, fx)
+                        out.append(
+                            LivePriceResponse(
+                                commodity=commodity,
+                                region=reg,
+                                unit=self._unit_for(commodity, reg),
+                                currency=REGION_CURRENCY[reg],
+                                live_price=round(price, 4),
+                                source=source,
+                                timestamp=now,
+                            )
+                        )
+
+        if len(fetched_commodities) == len(self.commodities):
+            return out
+
+        # Deep Fallback to cached history (existing logic)
+        for commodity in set(self.commodities) - fetched_commodities:
             try:
-                try:
-                    raw = self.fetcher.get_historical(commodity, period="1d")
-                    if raw.empty:
-                        raise TrainingError(f"No 1d market data available for {commodity}")
-                except Exception as yf_exc:
-                    logger.warning("yfinance 1d fetch failed for %s (%s). Falling back to cached history.", commodity, str(yf_exc))
-                    # Fallback to any cached historical data if yfinance live fetch is rate limited
-                    raw = self.fetcher.get_historical(commodity, period="1y")
-                    if raw.empty:
-                        raise TrainingError(f"No cached market data available for {commodity}")
+                raw = self.fetcher.get_historical(commodity, period="1y")
+                if raw.empty:
+                    raise TrainingError(f"No cached market data available for {commodity}")
 
                 latest = float(raw["Close"].iloc[-1])
-                source = f"{PRIMARY_SOURCE_BY_COMMODITY.get(commodity, 'yahoo_finance')}/yahoo_finance"
+                source = f"{PRIMARY_SOURCE_BY_COMMODITY.get(commodity, 'yahoo_finance')}/cached_history"
+                fetched_commodities.add(commodity)
                 for reg in regions:
                     price = self._to_regional_price(latest, reg, fx)
                     out.append(
@@ -200,21 +223,21 @@ class CommodityService:
                         )
                     )
             except Exception as exc:
-                logger.error(
-                    "pricing_failure commodity=%s reason=%s",
-                    commodity,
-                    str(exc),
-                )
+                logger.error("pricing_failure deep fallback commodity=%s reason=%s", commodity, str(exc))
                 continue
-        if not out:
-            # Fallback static prices when external sources fail (use for demo/testing)
+                
+        # Final Fallback static prices when external sources fail entirely
+        missing_commodities = set(self.commodities) - fetched_commodities
+        if missing_commodities:
             placeholder_prices = {
                 'gold': {'us': 1900.0, 'india': 173080.0, 'europe': 1800.0},
                 'silver': {'us': 24.0, 'india': 2000.0, 'europe': 23.0},
                 'crude_oil': {'us': 80.0, 'india': 80.0, 'europe': 80.0},
             }
-            for commodity, region_prices in placeholder_prices.items():
-                for reg, price in region_prices.items():
+            for commodity in missing_commodities:
+                region_prices = placeholder_prices[commodity]
+                for reg in regions:
+                    price = region_prices[reg]
                     out.append(
                         LivePriceResponse(
                             commodity=commodity,
@@ -226,7 +249,6 @@ class CommodityService:
                             timestamp=now,
                         )
                     )
-            return out
 
         return out
 
@@ -252,6 +274,23 @@ class CommodityService:
             self._metals_live_cooldown_until = now + timedelta(minutes=10)
             logger.warning("Metals.live API fetch failed: %s (cooldown 10m)", exc)
             return {}
+
+    async def _fetch_yahoo_finance_live_rates(self) -> dict[str, float]:
+        rates: dict[str, float] = {}
+        # Direct fetch to Yahoo Finance v8 API bypassing yfinance library rate limit blocks
+        async with httpx.AsyncClient(timeout=10.0, headers={"User-Agent": "Mozilla/5.0"}) as client:
+            for commodity, symbol in COMMODITY_SYMBOLS.items():
+                try:
+                    resp = await client.get(f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=1d")
+                    resp.raise_for_status()
+                    data = resp.json()
+                    price = data.get("chart", {}).get("result", [{}])[0].get("meta", {}).get("regularMarketPrice")
+                    if price is not None:
+                        rates[commodity] = float(price)
+                except Exception as exc:
+                    logger.warning("Direct YF API fetch failed for %s: %s", commodity, exc)
+                    continue
+        return rates
 
     async def historical(self, commodity: str, region: str, period: str = "1y") -> RegionalHistoricalResponse:
         self._validate(commodity)
