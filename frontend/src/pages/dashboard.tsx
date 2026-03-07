@@ -34,7 +34,7 @@ export function DashboardPage() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['live', region],
-    queryFn: () => client.livePricesByRegion(region),
+    queryFn: () => client.publicLivePricesByRegion(region),
     refetchInterval: 30_000,
     staleTime: 60_000,
   });
