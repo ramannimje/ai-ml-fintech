@@ -24,13 +24,18 @@ def get_settings() -> Settings:
 
 def resolve_database_url() -> str:
     settings = get_settings()
-    if settings.database_url:
-        return settings.database_url
+
+    # Note: Check Infisical for DATABASE_URL first
+    db_url_secret = get_secret_value(DB_SECRETS, "DATABASE_URL", env_fallback="DATABASE_URL", default=settings.database_url)
+    if db_url_secret:
+        return db_url_secret
 
     db_user = get_secret_value(DB_SECRETS, "POSTGRES_USER", env_fallback="POSTGRES_USER")
     db_password = get_secret_value(DB_SECRETS, "POSTGRES_PASSWORD", env_fallback="POSTGRES_PASSWORD")
     db_host = get_secret_value(DB_SECRETS, "POSTGRES_HOST", env_fallback="POSTGRES_HOST")
+    db_port = get_secret_value(DB_SECRETS, "POSTGRES_PORT", env_fallback="POSTGRES_PORT", default="5432")
     db_name = get_secret_value(DB_SECRETS, "POSTGRES_DB", env_fallback="POSTGRES_DB", default=settings.postgres_db)
+    
     if db_user and db_password and db_host and db_name:
-        return f"postgresql+asyncpg://{db_user}:{db_password}@{db_host}:5432/{db_name}"
+        return f"postgresql+asyncpg://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
     return "sqlite+aiosqlite:///./commodity.db"
