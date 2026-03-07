@@ -252,6 +252,10 @@ async def get_current_user(
     )
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 class TokenVerificationMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         request.state.user = None
@@ -262,11 +266,10 @@ class TokenVerificationMiddleware(BaseHTTPMiddleware):
             if token:
                 try:
                     request.state.user = await decode_access_token(token)
-                except HTTPException:
-                    return JSONResponse(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        content={"detail": "Invalid bearer token"},
-                    )
+                except HTTPException as exc:
+                    logger.warning("Token verification failed: %s", exc.detail)
+                    # Don't block the request — let it through with user=None.
+                    # Protected routes enforce auth via get_current_user dependency.
 
         response = await call_next(request)
         return response
