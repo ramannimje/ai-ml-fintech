@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import time
 from typing import Any
 
@@ -13,6 +14,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import get_settings
 from app.core.secrets import AUTH_SECRETS, get_secret_value
+
+logger = logging.getLogger(__name__)
 
 try:
     from jose import JWTError, jwt  # type: ignore
@@ -32,18 +35,21 @@ def _settings():
     return get_settings()
 
 
+_PLACEHOLDER_MARKERS = ("your-tenant", "your-client", "placeholder", "example.com")
+
+
 def _get_clean_domain() -> str:
-    domain = _settings().auth0_domain
-    if not domain:
+    domain = (_settings().auth0_domain or "").strip()
+    if not domain or any(m in domain.lower() for m in _PLACEHOLDER_MARKERS):
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="AUTH0_DOMAIN is not configured in the environment or Infisical.",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="AUTH0_DOMAIN is not configured. Please set it in Infisical or environment variables.",
         )
     if domain.startswith("https://"):
-        return domain[8:]
-    if domain.startswith("http://"):
-        return domain[7:]
-    return domain
+        domain = domain[8:]
+    elif domain.startswith("http://"):
+        domain = domain[7:]
+    return domain.rstrip("/")
 
 
 def _issuer() -> str:
@@ -231,15 +237,23 @@ async def get_current_user(
         return request.state.user
 
     if credentials and credentials.scheme.lower() == "bearer":
-        claims = await decode_access_token(credentials.credentials)
-        request.state.user = claims
-        return claims
+        try:
+            claims = await decode_access_token(credentials.credentials)
+            request.state.user = claims
+            return claims
+        except HTTPException:
+            # Token decode failed (e.g. Auth0 not configured, expired token).
+            # Fall through to other auth methods before giving up.
+            pass
 
     app_cookie = request.cookies.get("app_token")
     if app_cookie:
-        claims = await decode_access_token(app_cookie)
-        request.state.user = claims
-        return claims
+        try:
+            claims = await decode_access_token(app_cookie)
+            request.state.user = claims
+            return claims
+        except HTTPException:
+            pass
 
     session_user = request.session.get("user")
     if session_user:
@@ -248,13 +262,10 @@ async def get_current_user(
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Missing authentication token",
+        detail="Missing or invalid authentication token",
     )
 
 
-import logging
-
-logger = logging.getLogger(__name__)
 
 class TokenVerificationMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
