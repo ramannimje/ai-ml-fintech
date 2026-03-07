@@ -70,6 +70,14 @@ except ImportError:
 
 @app.on_event("startup")
 async def on_startup() -> None:
+    import logging
+    _log = logging.getLogger(__name__)
+    _log.info(
+        "startup_config env=%s auth0_domain=%s infisical_enabled=%s",
+        settings.environment,
+        bool(settings.auth0_domain and "your-tenant" not in settings.auth0_domain),
+        bool(settings.infisical_project_id),
+    )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await ensure_training_runs_schema(conn)
