@@ -6,7 +6,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends infisical \
     && rm -rf /var/lib/apt/lists/*
 COPY backend/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 COPY app ./app
 COPY ml ./ml
 COPY backend ./backend

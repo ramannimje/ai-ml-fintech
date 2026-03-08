@@ -1,0 +1,42 @@
+.git
+.gitignore
+
+# Environments
+.env
+.env.local
+.venv
+venv/
+ENV/
+env/
+backend/.venv/
+frontend/node_modules/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ML caches
+ml_cache/
+*.db
+*.csv
+.ipynb_checkpoints
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Render/Railway
+render.yaml
+railway.json
+
+# Misc
+*.log
+*.pdf
+*.jpg
+*.png
