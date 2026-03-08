@@ -41,16 +41,43 @@ npm install
 npm run dev
 ```
 
-## Production Deployment
+## Production Deployment (Railway & Vercel)
 
-1. Deploy backend to Render using `render.yaml`.
-2. Deploy frontend to Vercel and set `VITE_API_BASE_URL` to Render backend URL.
-3. Create Supabase Postgres and set `DATABASE_URL`.
-4. Create Upstash Redis and set `REDIS_URL` (TLS URL supported).
-5. Configure Infisical project/environments and load production secrets.
-6. Configure Auth0 app:
-   - Allowed Callback URLs: backend callback URL
-   - Allowed Web Origins: Vercel app URL
+We use **Railway** for the backend (due to better resource availability for ML training and no sleep phase) and **Vercel** for the frontend.
+
+### 1. Backend (Railway)
+
+1. Go to [railway.app](https://railway.app) and sign in with GitHub.
+2. Click **New Project** → **Deploy from GitHub repo** → select `ai-ml-fintech`.
+3. Railway will automatically detect the `railway.json` file and use the `backend/Dockerfile`.
+4. Once deployed, click on the service → **Variables** and add the following:
+
+   | Variable | Value |
+   |----------|-------|
+   | `ENVIRONMENT` | `production` |
+   | `DATABASE_URL` | *(your Supabase PostgreSQL URL)* |
+   | `AUTH0_DOMAIN` | `dev-mrxlgcmm2f0itm0g.us.auth0.com` |
+   | `AUTH0_CLIENT_ID` | `0aSmSDeSBI3UbUA4ls7MzJCEAsavmWg7` |
+   | `INFISICAL_PROJECT_ID` | *(from Infisical)* |
+   | `INFISICAL_ENV` | `prod` |
+   | `INFISICAL_CLIENT_ID` | *(from Infisical)* |
+   | `INFISICAL_CLIENT_SECRET` | *(from Infisical)* |
+
+5. Go to the **Settings** tab → click **Generate Domain** under Public Networking to get your public URL (e.g., `ai-ml-fintech-production.up.railway.app`).
+
+### 2. Frontend (Vercel)
+
+1. Go to [vercel.com](https://vercel.com) and sign in.
+2. If the project already exists, go to **Settings** → **Environment Variables**.
+3. Set/Update `VITE_API_BASE_URL` to the new Railway URL from step 5 (e.g., `https://ai-ml-fintech-production.up.railway.app/api`).
+4. Trigger a new deployment in Vercel.
+
+### 3. Auth0 Configuration
+
+1. Log in to your Auth0 Dashboard.
+2. Go to **Applications** → select your application.
+3. Update **Allowed Callback URLs** to include your new Railway URL: `https://<YOUR_RAILWAY_URL>/api/auth/callback`
+4. Ensure **Allowed Web Origins** and **Allowed Logout URLs** include your Vercel URL.
 
 ## Environment Model
 
@@ -59,7 +86,7 @@ npm run dev
 
 ## Health Check
 
-Render health check path:
+Railway health check path (automatically parsed from `railway.json`):
 
 `GET /api/health`
 
