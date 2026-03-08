@@ -101,12 +101,19 @@ export const predictionSchema = z.object({
 });
 
 const trainSchema = z.object({
-  commodity: z.enum(['gold', 'silver', 'crude_oil']),
-  region: z.enum(['india', 'us', 'europe']),
-  best_model: z.string(),
-  model_version: z.string(),
-  rmse: z.number(),
-  mape: z.number(),
+  message: z.string(),
+  status: z.enum(['processing']),
+});
+
+const trainStatusSchema = z.object({
+  status: z.enum(['none', 'processing', 'completed', 'failed']),
+  message: z.string(),
+  result: z.object({
+    rmse: z.number(),
+    mape: z.number(),
+    best_model: z.string(),
+    model_version: z.string(),
+  }).optional(),
 });
 
 const alertCommoditySchema = z.enum(['gold', 'silver', 'crude_oil', 'natural_gas', 'copper']);
@@ -251,7 +258,9 @@ export const client = {
   historical: async (commodity: Commodity, region: Region, range: '1m' | '6m' | '1y' | '5y' | 'max') =>
     historicalSchema.parse((await api.get(`/historical/${commodity}/${region}?range=${range}`)).data) as HistoricalResponse,
   train: async (commodity: Commodity, region: Region, horizon: number) =>
-    trainSchema.parse((await api.post(`/train/${commodity}/${region}?horizon=${horizon}`)).data) as TrainResponse,
+    trainSchema.parse((await api.post(`/train/${commodity}/${region}?horizon=${horizon}`)).data),
+  trainStatus: async (commodity: Commodity, region: Region) =>
+    trainStatusSchema.parse((await api.get(`/train/${commodity}/${region}/status`)).data),
   predict: async (commodity: Commodity, region: Region, horizon: number) =>
     predictionSchema.parse((await api.get(`/predict/${commodity}/${region}?horizon=${horizon}`)).data) as PredictionResponse,
   createAlert: async (input: {

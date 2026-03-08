@@ -48,6 +48,10 @@ class CommodityService:
     _model_cache: dict[tuple[str, str], tuple[Any, dict]] = {}
     # Short-lived prediction response cache for smoother UI refreshes.
     _prediction_cache: dict[tuple[str, str, int], tuple[datetime, RegionalPredictionResponse]] = {}
+    
+    # Tracks the status of background training runs: {(commodity, region): {"status": str, "message": str, "result": dict}}
+    _training_status: dict[tuple[str, str], dict] = {}
+    
     _metals_live_cooldown_until: datetime | None = None
     _metals_live_last_error: str | None = None
     def __init__(self) -> None:
@@ -331,69 +335,89 @@ class CommodityService:
     ) -> TrainResponse:
         self._validate(commodity)
         region = self._validate_region(region)
+        status_key = (commodity, region)
+        self._training_status[status_key] = {"status": "processing", "message": "Training started..."}
 
-        raw = self.fetcher.get_historical(commodity, region=region)
-        feat = self._enrich_features(raw, region)
-        if len(feat) < self.settings.min_training_rows:
-            raise TrainingError("Not enough data points to train")
-
-        x, y = make_supervised(feat, horizon=horizon)
-        from ml.training.models import benchmark_models
-
-        ranked = benchmark_models(x, y)
-        if not ranked:
-            raise TrainingError("No model could be trained")
-        best = ranked[0]
-        wf_rmse, wf_mape = self._walk_forward_score(x, y)
-
-        ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-        version = f"{best.name}_{region}_{ts}"
-        artifact = Path(self.settings.artifact_dir) / commodity / region / f"{version}.joblib"
-        save_model(
-            artifact,
-            best.model,
-            {
-                "rmse": wf_rmse,
-                "mape": wf_mape,
-                "horizon": horizon,
-                "commodity": commodity,
-                "region": region,
-                "version": version,
-                "model_name": best.name,
-            },
-        )
-        if not artifact.exists():
-            raise TrainingError(f"Model artifact not found after save: {artifact}")
-
-        run = TrainingRun(
-            commodity=commodity,
-            region=region,
-            model_name=best.name,
-            model_version=version,
-            rmse=wf_rmse,
-            mape=wf_mape,
-            artifact_path=str(artifact),
-        )
-        session.add(run)
         try:
-            await session.commit()
-        except IntegrityError as exc:
-            await session.rollback()
-            msg = str(exc.orig).lower() if exc.orig else str(exc).lower()
-            if "model_version" in msg and "unique" in msg:
-                raise TrainingError("Duplicate model_version detected; retry training") from exc
-            raise TrainingError("Training metadata insert failed (integrity error)") from exc
-        except SQLAlchemyError as exc:
-            await session.rollback()
-            raise TrainingError("Training metadata insert failed (database error)") from exc
-        return TrainResponse(
-            commodity=commodity,
-            region=region,
-            best_model=best.name,
-            model_version=version,
-            rmse=wf_rmse,
-            mape=wf_mape,
-        )
+            raw = self.fetcher.get_historical(commodity, region=region)
+            feat = self._enrich_features(raw, region)
+            if len(feat) < self.settings.min_training_rows:
+                raise TrainingError("Not enough data points to train")
+
+            x, y = make_supervised(feat, horizon=horizon)
+            from ml.training.models import benchmark_models
+
+            ranked = benchmark_models(x, y)
+            if not ranked:
+                raise TrainingError("No model could be trained")
+            best = ranked[0]
+            wf_rmse, wf_mape = self._walk_forward_score(x, y)
+
+            ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+            version = f"{best.name}_{region}_{ts}"
+            artifact = Path(self.settings.artifact_dir) / commodity / region / f"{version}.joblib"
+            save_model(
+                artifact,
+                best.model,
+                {
+                    "rmse": wf_rmse,
+                    "mape": wf_mape,
+                    "horizon": horizon,
+                    "commodity": commodity,
+                    "region": region,
+                    "version": version,
+                    "model_name": best.name,
+                },
+            )
+            if not artifact.exists():
+                raise TrainingError(f"Model artifact not found after save: {artifact}")
+
+            run = TrainingRun(
+                commodity=commodity,
+                region=region,
+                model_name=best.name,
+                model_version=version,
+                rmse=wf_rmse,
+                mape=wf_mape,
+                artifact_path=str(artifact),
+            )
+            session.add(run)
+            try:
+                await session.commit()
+            except IntegrityError as exc:
+                await session.rollback()
+                msg = str(exc.orig).lower() if exc.orig else str(exc).lower()
+                if "model_version" in msg and "unique" in msg:
+                    raise TrainingError("Duplicate model_version detected; retry training") from exc
+                raise TrainingError("Training metadata insert failed (integrity error)") from exc
+            except SQLAlchemyError as exc:
+                await session.rollback()
+                raise TrainingError("Training metadata insert failed (database error)") from exc
+                
+            response = TrainResponse(
+                commodity=commodity,
+                region=region,
+                best_model=best.name,
+                model_version=version,
+                rmse=wf_rmse,
+                mape=wf_mape,
+            )
+            
+            self._training_status[status_key] = {
+                "status": "completed", 
+                "message": f"Successfully trained {best.name}", 
+                "result": response.model_dump()
+            }
+            return response
+            
+        except Exception as e:
+            self._training_status[status_key] = {"status": "failed", "message": str(e)}
+            raise e
+
+    def get_training_status(self, commodity: str, region: str) -> dict:
+        self._validate(commodity)
+        region = self._validate_region(region)
+        return self._training_status.get((commodity, region)) or {"status": "none", "message": "No recent training run found."}
 
     async def latest_metrics(self, session: AsyncSession, commodity: str, region: str) -> TrainingRun | None:
         self._validate(commodity)

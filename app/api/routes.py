@@ -2,7 +2,7 @@ import csv
 import io
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -426,26 +426,45 @@ async def update_profile(
 
 @router.post(
     "/train/{commodity}/{region}",
-    response_model=TrainResponse,
+    status_code=status.HTTP_202_ACCEPTED,
     responses={400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
 )
 async def train(
     commodity: str,
     region: str,
+    background_tasks: BackgroundTasks,
     horizon: int = Query(1, ge=1, le=90),
     session: AsyncSession = Depends(get_session),
     current_user: dict = Depends(get_current_user),
-) -> TrainResponse:
+):
+    _ = current_user
+    
+    # We must quickly trigger the train method and return so the client doesn't timeout.
+    # We need a new session context for the background task to avoid closed-session errors.
+    from app.db.session import AsyncSessionLocal
+    import asyncio
+    
+    async def run_training():
+        async with AsyncSessionLocal() as bg_session:
+            try:
+                await service.train(bg_session, commodity, region=region, horizon=horizon)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"Background training failed for {commodity}/{region}: {e}")
+
+    background_tasks.add_task(run_training)
+    
+    return {"message": f"Training initiated in background for {commodity} in {region}", "status": "processing"}
+
+@router.get("/train/{commodity}/{region}/status")
+async def get_training_status(
+    commodity: str,
+    region: str,
+    current_user: dict = Depends(get_current_user),
+):
     _ = current_user
     try:
-        return await service.train(session, commodity, region=region, horizon=horizon)
-    except CommodityNotSupportedError as exc:
-        raise HTTPException(
-            status_code=404,
-            detail=_err("UNSUPPORTED_COMMODITY", str(exc), commodity=commodity),
-        ) from exc
-    except (ValueError, TrainingError) as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=_err("TRAINING_FAILED", str(exc), commodity=commodity, region=region),
-        ) from exc
+        return service.get_training_status(commodity, region=region)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=_err("STATUS_CHECK_FAILED", str(exc)))
+
