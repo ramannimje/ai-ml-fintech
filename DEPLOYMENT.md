@@ -63,20 +63,20 @@ We use **Railway** for the backend (due to better resource availability for ML t
    | `INFISICAL_CLIENT_ID` | *(from Infisical)* |
    | `INFISICAL_CLIENT_SECRET` | *(from Infisical)* |
 
-5. Go to the **Settings** tab → click **Generate Domain** under Public Networking to get your public URL (e.g., `ai-ml-fintech-production.up.railway.app`).
+5. Go to the **Settings** tab → click **Generate Domain** under Public Networking to get your public URL. Then click **Edit** on the domain to change it to `tradesight-io.up.railway.app` (or similar, depending on availability).
 
 ### 2. Frontend (Vercel)
 
 1. Go to [vercel.com](https://vercel.com) and sign in.
 2. If the project already exists, go to **Settings** → **Environment Variables**.
-3. Set/Update `VITE_API_BASE_URL` to the new Railway URL from step 5 (e.g., `https://ai-ml-fintech-production.up.railway.app/api`).
+3. Set/Update `VITE_API_BASE_URL` to the new Railway URL from step 5: `https://tradesight-io.up.railway.app/api`.
 4. Trigger a new deployment in Vercel.
 
 ### 3. Auth0 Configuration
 
 1. Log in to your Auth0 Dashboard.
 2. Go to **Applications** → select your application.
-3. Update **Allowed Callback URLs** to include your new Railway URL: `https://<YOUR_RAILWAY_URL>/api/auth/callback`
+3. Update **Allowed Callback URLs** to include your new Railway URL: `https://tradesight-io.up.railway.app/api/auth/callback`
 4. Ensure **Allowed Web Origins** and **Allowed Logout URLs** include your Vercel URL.
 
 ## Environment Model
