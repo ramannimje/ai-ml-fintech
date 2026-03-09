@@ -278,15 +278,8 @@ class AIChatResponse(BaseModel):
 
 
 class AIProviderStatusResponse(BaseModel):
-    provider: Literal["openai", "gemini", "ollama", "disabled"]
-    openai_model: str
-    openai_fallback_models: list[str]
-    openai_api_key_present: bool
-    openai_cooldown_seconds_remaining: int = Field(ge=0)
-    last_openai_error: Optional[str] = None
-    gemini_model: str
-    gemini_fallback_models: list[str]
-    gemini_api_key_present: bool
-    gemini_cooldown_seconds_remaining: int = Field(ge=0)
-    last_gemini_error: Optional[str] = None
-    gemini_discovered_model: Optional[str] = None
+    provider: Literal["openrouter", "disabled"]
+    openrouter_model: str
+    openrouter_api_key_present: bool
+    openrouter_cooldown_seconds_remaining: int = Field(ge=0)
+    last_openrouter_error: Optional[str] = None

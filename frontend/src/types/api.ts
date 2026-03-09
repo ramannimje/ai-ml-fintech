@@ -186,3 +186,11 @@ export interface AIChatResponse {
   horizon_days: number;
   generated_at: string;
 }
+
+export interface AIProviderStatus {
+  provider: 'openrouter' | 'disabled';
+  openrouter_model: string;
+  openrouter_api_key_present: boolean;
+  openrouter_cooldown_seconds_remaining: number;
+  last_openrouter_error?: string | null;
+}

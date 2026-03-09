@@ -64,6 +64,14 @@ def _missing_columns(current: Iterable[str]) -> list[str]:
     return [c for c in REQUIRED_COLUMNS if c not in current]
 
 
+async def ensure_vector_extension(conn: AsyncConnection) -> None:
+    """Ensure pgvector extension is enabled for PostgreSQL dialects."""
+    dialect = conn.engine.dialect.name
+    if dialect == "postgresql":
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        logger.info("schema_check: pgvector extension verified")
+
+
 async def ensure_training_runs_schema(conn: AsyncConnection) -> None:
     """
     Validate and repair `training_runs` for older SQLite files.

@@ -7,6 +7,7 @@ import type {
   AlertHistoryItem,
   AlertHistoryFilters,
   AlertType,
+  AIProviderStatus,
   AIChatResponse,
   CommodityNewsSummary,
   Commodity,
@@ -234,6 +235,14 @@ const aiChatResponseSchema = z.object({
   generated_at: z.string(),
 });
 
+const aiProviderStatusSchema = z.object({
+  provider: z.enum(['openrouter', 'disabled']),
+  openrouter_model: z.string(),
+  openrouter_api_key_present: z.boolean(),
+  openrouter_cooldown_seconds_remaining: z.number().int().min(0),
+  last_openrouter_error: z.string().nullable().optional(),
+});
+
 function withQuery(path: string, filters: AlertHistoryFilters = {}): string {
   const params = new URLSearchParams();
   if (filters.commodity) params.set('commodity', filters.commodity);
@@ -318,6 +327,8 @@ export const client = {
   }) => userSettingsSchema.parse((await api.post('/settings', input)).data) as UserSettings,
   sendChatMessage: async (message: string) =>
     aiChatResponseSchema.parse((await api.post('/ai/chat', { message })).data) as AIChatResponse,
+  aiProviderStatus: async () =>
+    aiProviderStatusSchema.parse((await api.get('/ai/provider-status')).data) as AIProviderStatus,
   sendChatMessageStream: async (
     message: string,
     handlers: {

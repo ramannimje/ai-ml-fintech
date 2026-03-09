@@ -50,6 +50,8 @@ Behavior constraints:
 - Forecast-supported commodities: `gold`, `silver`, `crude_oil`
 - Additional tracked commodities for market data include `natural_gas`, `copper`
 - Prediction horizon constrained to `1..90` days
+- **Training Pipeline**: `/api/train` delegates long ML runs to FastAPI `BackgroundTasks`. The frontend polls `/api/train/.../status` to read from the `CommodityService._training_status` dictionary. 
+- **Scoring**: `CommodityService.train` pulls pre-calculated `rmse` and `mape` scores directly from the `benchmark_models` 80/20 train/test split. Do not introduce loops like walk-forward validation as Prophet takes too long to fit repeatedly.
 
 ## Secrets
 

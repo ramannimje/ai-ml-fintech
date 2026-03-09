@@ -375,6 +375,8 @@ class AIReasoningEngine:
             return "region_comparison"
         if has_comparison_commodity or "compare" in text or "vs" in text:
             return "commodity_comparison"
+        if any(word in text for word in ("invest", "buy", "sell", "hold", "outlook", "advice", "entry", "exit")):
+            return "trading_outlook"
         if any(word in text for word in ("forecast", "predict", "will", "price in", "target", "future", "by ")):
             return "price_forecast"
         if any(word in text for word in ("volatility", "volatile", "spike", "sudden move")):
@@ -555,7 +557,10 @@ class AIReasoningEngine:
         if not ranked:
             return "insufficient cross-commodity signal"
         top = ranked[0]
-        return f"{self._label(str(top['commodity']))} leads momentum ({float(top['change_pct']):+.2f}%)"
+        change = float(top["change_pct"])
+        if change >= 0:
+            return f"{self._label(str(top['commodity']))} leads upside momentum ({change:+.2f}%)"
+        return f"{self._label(str(top['commodity']))} shows the sharpest downside move ({change:+.2f}%)"
 
     def _investment_view(self, trend: dict[str, Any], prediction: dict[str, Any] | None) -> dict[str, str]:
         direction = str(trend.get("direction", "neutral"))

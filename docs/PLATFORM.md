@@ -12,7 +12,7 @@ Nginx (:80)
                    |- SQLAlchemy (SQLite/Postgres)
                    |- Commodity/ML services
                    |- Alert services (email/whatsapp)
-                   '- AI chat service (Gemini/OpenAI/Ollama)
+                   '- AI chat service (OpenRouter)
 ```
 
 ## Data + Forecasting Flow
@@ -41,8 +41,18 @@ Market:
 - `/api/public/live-prices/{region}`
 - `/api/historical/{commodity}/{region}`
 - `/api/predict/{commodity}/{region}`
-- `/api/train/{commodity}/{region}`
+- `/api/train/{commodity}/{region}` (returns 202 Accepted)
+- `/api/train/{commodity}/{region}/status` (polls in-memory progress cache)
 - `/api/news-summary/{commodity}`
+
+## Async ML Training Architecture
+
+Due to the heavy resource requirements of training ML models (Prophet, XGBoost, N-BEATS, Random Forest), the `/api/train` endpoint executes asynchronously:
+
+1. **Initiation**: FastAPI receives the POST request and immediately returns a `202 Accepted` response.
+2. **Background Task**: The actual training loop (`CommodityService.train()`) is passed to FastAPI's `BackgroundTasks`, running outside the main event loop to prevent API blocking/timeouts.
+3. **Optimized Scoring**: The system calculates metrics using an 80/20 train/test split via `benchmark_models` instead of redundant cross-validation walk-forward loops, reducing runtime from 4 minutes to under 30 seconds.
+4. **Status Polling**: The React frontend actively polls the new `/status` endpoint every 5 seconds, which reads an in-memory `_training_status` cache to determine if the job is `processing`, `completed`, or `failed`.
 
 AI:
 
@@ -73,14 +83,10 @@ Advisory-intent questions (buy/sell/invest/hold/entry/exit/forecast timing) foll
 
 1. Build user + market context
 2. Build dynamic advisory prompt
-3. Call Gemini directly
-4. Return Gemini output
+3. Call OpenRouter (`qwen/qwen3-next-80b-a3b-instruct`)
+4. Return model output
 
-Template-based advisory answers are not returned for advisory queries.
-
-On Gemini advisory failure, response text is fixed:
-
-`We are unable to generate an advisory response at the moment. Please try again.`
+If the provider call fails, the service falls back to deterministic engine output.
 
 ## Secrets and Configuration
 

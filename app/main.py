@@ -11,10 +11,11 @@ from app.core.config import get_settings
 from app.core.secrets import AUTH_SECRETS, get_secret_value
 from app.core.logging import setup_logging
 from app.db.base import Base
-from app.db.schema_guard import ensure_alerts_schema, ensure_training_runs_schema
+from app.db.schema_guard import ensure_alerts_schema, ensure_training_runs_schema, ensure_vector_extension
 from app.db.session import AsyncSessionLocal, engine
 # Import all models so Base.metadata includes them
 from app.models import alert_history, chat_history, price_alert, price_record, training_run, user_profile, user_settings  # noqa: F401
+from app.models import vector_models  # noqa: F401
 from app.workers.whatsapp_alert_worker import whatsapp_alert_worker
 
 settings = get_settings()
@@ -79,6 +80,7 @@ async def on_startup() -> None:
         bool(settings.infisical_project_id),
     )
     async with engine.begin() as conn:
+        await ensure_vector_extension(conn)
         await conn.run_sync(Base.metadata.create_all)
         await ensure_training_runs_schema(conn)
         await ensure_alerts_schema(conn)

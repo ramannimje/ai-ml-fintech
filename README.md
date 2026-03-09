@@ -1,6 +1,6 @@
 # TradeSight
 
-AI-powered multi-region commodity market intelligence platform with a FastAPI backend, React frontend, model-driven forecasting, alerts, and Gemini-based advisory chat.
+AI-powered multi-region commodity market intelligence platform with a FastAPI backend, React frontend, model-driven forecasting, alerts, and OpenRouter-based advisory chat.
 
 ## Stack
 
@@ -24,12 +24,14 @@ tests/               Pytest suites
 ## Key Functionality
 
 - Live commodity pricing by region (`india`, `us`, `europe`)
-- Historical data and forecasting (`gold`, `silver`, `crude_oil`)
+- Historical data and multi-region forecasting (`gold`, `silver`, `crude_oil`)
+- **Asynchronous ML Pipeline**: Background model training with real-time UI status polling and animated Framer Motion progress bars.
 - User profile + settings (preferred region, prediction horizon)
 - Alerts: email + WhatsApp, history, CSV export
 - News summaries per commodity
-- AI chat endpoints with provider abstraction (Gemini/OpenAI/Ollama)
-- Advisory query handling: advisory questions are generated directly by Gemini with dynamic market context
+- AI chat endpoints with OpenRouter (`qwen/qwen3-next-80b-a3b-instruct`)
+- Advisory query handling: advisory questions are generated via OpenRouter with dynamic market context
+- Institutional "About Us" page detailing the builders
 
 ## AI Chat Behavior (Latest)
 
@@ -37,10 +39,10 @@ For advisory-style questions (for example, buy/sell/invest/hold timing):
 
 1. Build market data context
 2. Construct a dynamic advisory prompt
-3. Call Gemini directly
-4. Return Gemini output
+3. Call OpenRouter directly
+4. Return model output
 
-No template response is used for advisory questions. If Gemini cannot respond, API returns:
+No template response is used for advisory questions. If the provider cannot respond, API falls back to deterministic engine output.
 
 `We are unable to generate an advisory response at the moment. Please try again.`
 
@@ -56,7 +58,8 @@ Core:
 - `GET /api/public/live-prices/{region}`
 - `GET /api/historical/{commodity}/{region}`
 - `GET /api/predict/{commodity}/{region}`
-- `POST /api/train/{commodity}/{region}`
+- `POST /api/train/{commodity}/{region}` (returns 202 Accepted for background processing)
+- `GET /api/train/{commodity}/{region}/status` (polls real-time training progression)
 
 Alerts/Profile:
 
@@ -104,7 +107,7 @@ cp .env.example .env
 
 4. Secrets are read by namespace paths:
 
-- `/ai`: `OPENAI_API_KEY`, `GEMINI_API_KEY`, ...
+- `/ai`: `OPENROUTER_API_KEY`, ...
 - `/database`: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_DB`
 - `/email`: `SENDGRID_API_KEY`, `RESEND_API_KEY`
 - `/auth`: `AUTH0_SECRET`, `JWT_SECRET`, messaging auth tokens

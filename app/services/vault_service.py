@@ -208,8 +208,7 @@ class VaultService:
     def _path_keys(self, path: str) -> list[str]:
         mapping: dict[str, list[str]] = {
             "ai": [
-                "OPENAI_API_KEY",
-                "GEMINI_API_KEY",
+                "OPENROUTER_API_KEY",
                 "NEWSAPI_KEY",
                 "ANTHROPIC_API_KEY",
             ],

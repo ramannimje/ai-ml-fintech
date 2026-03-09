@@ -47,7 +47,7 @@ async def ai_chat(
             preferred_region=profile.preferred_region,
         )
     except AIProviderUnavailableError as exc:
-        raise HTTPException(status_code=503, detail=f"Gemini unavailable: {exc}") from exc
+        raise HTTPException(status_code=503, detail=f"AI provider unavailable: {exc}") from exc
 
 
 @router.post("/ai/chat/stream")
@@ -77,7 +77,7 @@ async def ai_chat_stream(
             preferred_region=profile.preferred_region,
         )
     except AIProviderUnavailableError as exc:
-        raise HTTPException(status_code=503, detail=f"Gemini unavailable: {exc}") from exc
+        raise HTTPException(status_code=503, detail=f"AI provider unavailable: {exc}") from exc
 
     async def event_stream():
         text = response.answer

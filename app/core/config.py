@@ -16,8 +16,7 @@ class Settings(BaseSettings):
     auth0_client_id: str = ""
     auth0_client_secret: str = ""
     jwt_secret: str = ""
-    gemini_api_key: str = ""
-    openai_api_key: str = ""
+    openrouter_api_key: str = ""
     infisical_project_id: str = ""
     infisical_env: str = "dev"
     infisical_token: str = ""
@@ -45,11 +44,9 @@ class Settings(BaseSettings):
     whatsapp_alert_poll_interval_seconds: int = 60
     whatsapp_worker_enabled: bool = True
     anthropic_model: str = "claude-3-5-haiku-latest"
-    ai_chat_provider: str = "gemini"
-    openai_chat_model: str = "gpt-5.2"
-    openai_fallback_models: str = "gpt-5,gpt-4.1,gpt-4o-mini"
-    gemini_model: str = "gemini-1.5-pro"
-    gemini_fallback_models: str = "gemini-1.5-flash"
+    ai_chat_provider: str = "openrouter"
+    openrouter_chat_model: str = "qwen/qwen3-next-80b-a3b-instruct"
+    openrouter_base_url: str = "https://openrouter.ai/api/v1/chat/completions"
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "llama3.1"
     postgres_db: str = "commodity_db"
@@ -79,8 +76,7 @@ def get_settings() -> Settings:
             env_fallbacks=["AUTH0_CLIENT_SECRET", "AUTH0_SECRET"],
         ),
         "jwt_secret": vault.get_value(path="auth", key="JWT_SECRET", env_fallbacks=["JWT_SECRET", "SECRET_KEY"]),
-        "gemini_api_key": vault.get_value(path="ai", key="GEMINI_API_KEY", env_fallbacks=["GEMINI_API_KEY"]),
-        "openai_api_key": vault.get_value(path="ai", key="OPENAI_API_KEY", env_fallbacks=["OPENAI_API_KEY"]),
+        "openrouter_api_key": vault.get_value(path="ai", key="OPENROUTER_API_KEY", env_fallbacks=["OPENROUTER_API_KEY"]),
         "resend_api_key": vault.get_value(path="email", key="RESEND_API_KEY", env_fallbacks=["RESEND_API_KEY"]),
         "sendgrid_api_key": vault.get_value(path="email", key="SENDGRID_API_KEY", env_fallbacks=["SENDGRID_API_KEY"]),
     }

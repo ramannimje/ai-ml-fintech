@@ -12,7 +12,7 @@ def test_infisical_service_caches_and_force_refresh(monkeypatch):
         calls.append(cmd)
         if cmd[1] == "secrets" and cmd[2] == "get":
             key = cmd[3]
-            if key == "OPENAI_API_KEY":
+            if key == "OPENROUTER_API_KEY":
                 return subprocess.CompletedProcess(cmd, 0, "k1\n", "")
             return subprocess.CompletedProcess(cmd, 1, "", "secret not found")
         raise AssertionError(f"unexpected command: {cmd}")
@@ -30,10 +30,10 @@ def test_infisical_service_caches_and_force_refresh(monkeypatch):
     second = service.get_secret("ai")
     refreshed = service.get_secret("ai", force_refresh=True)
 
-    assert first["OPENAI_API_KEY"] == "k1"
-    assert second["OPENAI_API_KEY"] == "k1"
-    assert refreshed["OPENAI_API_KEY"] == "k1"
-    assert sum(1 for c in calls if len(c) > 3 and c[1:4] == ["secrets", "get", "OPENAI_API_KEY"]) == 2
+    assert first["OPENROUTER_API_KEY"] == "k1"
+    assert second["OPENROUTER_API_KEY"] == "k1"
+    assert refreshed["OPENROUTER_API_KEY"] == "k1"
+    assert sum(1 for c in calls if len(c) > 3 and c[1:4] == ["secrets", "get", "OPENROUTER_API_KEY"]) == 2
 
 
 def test_infisical_service_reauth_on_renew(monkeypatch):

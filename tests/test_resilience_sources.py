@@ -4,9 +4,8 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 
 import httpx
-import pytest
 
-from app.services.ai_chat_service import AIChatService, AIProviderUnavailableError
+from app.services.ai_chat_service import AIChatService
 from app.services.commodity_service import CommodityService
 
 
@@ -55,44 +54,22 @@ def test_metals_live_cooldown_skips_remote_call(monkeypatch) -> None:
     assert called["value"] is False
 
 
-def test_openai_retry_after_cooldown_parser() -> None:
-    request = httpx.Request("POST", "https://api.openai.com/v1/responses")
+def test_openrouter_retry_after_cooldown_parser() -> None:
+    request = httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions")
     response = httpx.Response(status_code=429, request=request, headers={"retry-after": "180"})
     assert AIChatService._cooldown_from_rate_limit(response, default_seconds=300) == 180
 
 
-def test_gemini_model_not_found_detection() -> None:
-    request = httpx.Request("POST", "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent")
-    response = httpx.Response(
-        status_code=404,
-        request=request,
-        json={"error": {"message": "models/gemini-1.5-flash is not found for API version v1beta"}},
-    )
-    assert AIChatService._is_gemini_model_not_found(response) is True
+def test_extract_openrouter_text() -> None:
+    payload = {"choices": [{"message": {"content": "hello"}}]}
+    assert AIChatService._extract_openrouter_text(payload) == "hello"
 
 
-def test_select_gemini_candidates_filters_unavailable_models() -> None:
+def test_openrouter_refine_success(monkeypatch) -> None:
     service = AIChatService()
-    service.settings.gemini_model = "gemini-1.5-pro"
-    service.settings.gemini_fallback_models = "gemini-1.5-flash"
-    available = ["gemini-2.0-flash", "gemini-2.5-flash"]
-    out = service._select_gemini_candidates(available)
-    assert out[0] in {"gemini-2.5-flash", "gemini-2.0-flash"}
-    assert "gemini-1.5-pro" not in out
-    assert "gemini-1.5-flash" not in out
+    monkeypatch.setattr(service, "_openrouter_api_key", lambda: "test-key")
 
-
-def test_gemini_refine_success_with_api_question(monkeypatch) -> None:
-    service = AIChatService()
-    service.settings.gemini_model = "gemini-1.5-pro"
-    service.settings.gemini_fallback_models = "gemini-1.5-flash"
-    monkeypatch.setattr(service, "_gemini_api_key", lambda: "test-key")
-
-    async def _available_models(use_cache=True):
-        _ = use_cache
-        return ["gemini-2.0-flash"]
-
-    class _GeminiClient:
+    class _OpenRouterClient:
         async def __aenter__(self):
             return self
 
@@ -103,15 +80,14 @@ def test_gemini_refine_success_with_api_question(monkeypatch) -> None:
             _ = headers, json
             return httpx.Response(
                 status_code=200,
-                request=httpx.Request("POST", "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"),
-                json={"candidates": [{"content": {"parts": [{"text": "Gold is expected to trade near 171000 INR by end-2026."}]}}]},
+                request=httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions"),
+                json={"choices": [{"message": {"content": "Gold is expected to stay firm."}}]},
             )
 
-    monkeypatch.setattr(service, "_get_gemini_available_models", _available_models)
-    monkeypatch.setattr(httpx, "AsyncClient", lambda *args, **kwargs: _GeminiClient())
+    monkeypatch.setattr(httpx, "AsyncClient", lambda *args, **kwargs: _OpenRouterClient())
 
     out = asyncio.run(
-        service._gemini_refine(
+        service._openrouter_refine(
             query_context={"message": "what is the gold price in 2026 end?"},
             data_context={},
             fallback_answer="fallback",
@@ -120,61 +96,19 @@ def test_gemini_refine_success_with_api_question(monkeypatch) -> None:
     assert "Gold is expected" in out
 
 
-def test_gemini_provider_is_strict_no_fallback(monkeypatch) -> None:
-    service = AIChatService()
-    service.settings.ai_chat_provider = "gemini"
-
-    async def _fake_gemini_refine(query_context, data_context, fallback_answer):
-        _ = query_context, data_context
-        return fallback_answer
-
-    monkeypatch.setattr(service, "_gemini_refine", _fake_gemini_refine)
-
-    with pytest.raises(AIProviderUnavailableError):
-        asyncio.run(
-            service._maybe_llm_refine(
-                query_context={"message": "predict the gold price in 2026 end"},
-                data_context={},
-                fallback_answer="fallback",
-            )
-        )
-
-
-def test_gemini_trading_outlook_does_not_append_template_sections(monkeypatch) -> None:
-    service = AIChatService()
-    service.settings.ai_chat_provider = "gemini"
-
-    async def _fake_gemini_refine(query_context, data_context, fallback_answer):
-        _ = query_context, data_context, fallback_answer
-        return "Current Market\nSilver is strong.\n\nTrend Analysis\nBullish momentum."
-
-    monkeypatch.setattr(service, "_gemini_refine", _fake_gemini_refine)
-
-    out = asyncio.run(
-        service._maybe_llm_refine(
-            query_context={"intent": "trading_outlook", "message": "shall I invest in silver now?"},
-            data_context={},
-            fallback_answer=(
-                "Current Market\nSilver snapshot.\n\nTrend Analysis\nTrend text.\n\n"
-                "Investment View\nBias: Buy-on-dips. Confidence: medium.\n\nMarket Signal\nBullish."
-            ),
-        )
-    )
-    assert out == "Current Market\nSilver is strong.\n\nTrend Analysis\nBullish momentum."
-
-
-def test_gemini_advisory_returns_fixed_message_on_failure(monkeypatch) -> None:
+def test_openrouter_advisory_returns_engine_fallback_on_failure(monkeypatch) -> None:
     service = AIChatService()
 
-    async def _fake_gemini_generate_content(system_prompt, prompt, use_model_cache):
-        _ = system_prompt, prompt, use_model_cache
+    async def _fake_openrouter_generate_content(system_prompt, prompt, temperature, max_tokens):
+        _ = system_prompt, prompt, temperature, max_tokens
         return ""
 
-    monkeypatch.setattr(service, "_gemini_generate_content", _fake_gemini_generate_content)
-    service._gemini_last_error = "timeout"
+    monkeypatch.setattr(service, "_openrouter_generate_content", _fake_openrouter_generate_content)
+    service._openrouter_last_error = "timeout"
 
     out = asyncio.run(
-        service._gemini_advisory_answer(
+        service._openrouter_advisory_answer(
+            session=None,  # type: ignore[arg-type]
             question="Should I invest in silver now?",
             query_context={"commodity": "silver"},
             data_context={
@@ -182,6 +116,7 @@ def test_gemini_advisory_returns_fixed_message_on_failure(monkeypatch) -> None:
                 "historical_trend": {"signal_text": "bullish", "volatility_pct": 3.5, "change_pct": 8.2},
                 "regional_market_signal": "Silver leads",
             },
+            fallback_answer="fallback-outlook",
         )
     )
-    assert out == "We are unable to generate an advisory response at the moment. Please try again."
+    assert out == "fallback-outlook"
