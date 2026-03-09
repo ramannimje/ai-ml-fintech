@@ -92,10 +92,10 @@ export function TrainPage() {
             exit={{ opacity: 0, height: 0, y: -20 }}
             className="overflow-hidden"
           >
-            <div className="rounded-2xl border border-[var(--primary)]/30 bg-[var(--primary)]/5 p-5">
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5">
               <div className="mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--primary)]/20 text-[var(--primary)]">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-500">
                     <Loader2 className="h-5 w-5 animate-spin" />
                   </div>
                   <div>
@@ -104,14 +104,14 @@ export function TrainPage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className="inline-flex animate-pulse items-center rounded-full bg-[var(--primary)]/20 px-2.5 py-0.5 text-xs font-medium text-[var(--primary)]">
+                  <span className="inline-flex animate-pulse items-center rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-medium text-emerald-500">
                     In Progress
                   </span>
                 </div>
               </div>
               <div className="relative h-2 w-full overflow-hidden rounded-full bg-[var(--surface-2)]">
                 <motion.div
-                  className="absolute bottom-0 top-0 w-1/3 rounded-full bg-[var(--primary)]"
+                  className="absolute bottom-0 top-0 w-1/3 rounded-full bg-emerald-500"
                   initial={{ left: "-33%" }}
                   animate={{ left: "100%" }}
                   transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}

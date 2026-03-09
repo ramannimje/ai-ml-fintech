@@ -106,42 +106,6 @@ class CommodityService:
         feat["interest_rates_fred_ecb_rbi"] = feat["returns"].rolling(60, min_periods=10).std().fillna(0.0)
         return feat
 
-    def _walk_forward_score(self, x: pd.DataFrame, y: pd.Series) -> tuple[float, float]:
-        from ml.training.models import benchmark_models
-
-        min_train = max(60, int(len(x) * 0.6))
-        if len(x) <= min_train + 5:
-            ranked = benchmark_models(x, y)
-            if not ranked:
-                raise TrainingError("No model could be trained")
-            return ranked[0].rmse, ranked[0].mape
-
-        rmses: list[float] = []
-        mapes: list[float] = []
-        step = max(5, int(len(x) * 0.1))
-        for split in range(min_train, len(x) - 1, step):
-            x_train = x.iloc[:split]
-            y_train = y.iloc[:split]
-            x_test = x.iloc[split : split + step]
-            y_test = y.iloc[split : split + step]
-            ranked = benchmark_models(x_train, y_train)
-            if not ranked or x_test.empty:
-                continue
-            pred = ranked[0].model.predict(x_test)
-            residual = y_test.to_numpy() - pred
-            rmse = float(np.sqrt(np.mean(np.square(residual))))
-            denom = np.where(y_test.to_numpy() == 0, 1.0, y_test.to_numpy())
-            mape = float(np.mean(np.abs(residual / denom)) * 100.0)
-            rmses.append(rmse)
-            mapes.append(mape)
-
-        if not rmses:
-            ranked = benchmark_models(x, y)
-            if not ranked:
-                raise TrainingError("No model could be trained")
-            return ranked[0].rmse, ranked[0].mape
-        return float(np.mean(rmses)), float(np.mean(mapes))
-
     async def live_prices(self, region: str | None = None) -> list[LivePriceResponse]:
         """Fetch live commodity prices.
 
@@ -351,7 +315,7 @@ class CommodityService:
             if not ranked:
                 raise TrainingError("No model could be trained")
             best = ranked[0]
-            wf_rmse, wf_mape = self._walk_forward_score(x, y)
+            wf_rmse, wf_mape = best.rmse, best.mape
 
             ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
             version = f"{best.name}_{region}_{ts}"
