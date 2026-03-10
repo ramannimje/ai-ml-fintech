@@ -105,7 +105,7 @@ export function ChatMessage({ message }: { message: AIChatMessage }) {
       className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
     >
       <div
-        className={`max-w-[88%] rounded-2xl border p-4 text-sm md:max-w-[78%] ${isUser ? 'ml-4' : 'mr-4'}`}
+        className={`max-w-[94%] rounded-2xl border p-4 text-sm sm:max-w-[88%] md:max-w-[78%] ${isUser ? 'ml-2 sm:ml-4' : 'mr-2 sm:mr-4'}`}
         style={{
           borderColor: isUser ? 'color-mix(in srgb, var(--gold) 40%, var(--border))' : 'var(--border)',
           background: isUser
@@ -125,4 +125,3 @@ export function ChatMessage({ message }: { message: AIChatMessage }) {
     </motion.article>
   );
 }
-

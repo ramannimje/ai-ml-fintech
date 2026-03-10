@@ -213,22 +213,22 @@ export function ProfilePage() {
         <div className="mt-4 space-y-2">
           {alerts.data?.map((item) => (
             <div key={item.id} className="panel-soft rounded-xl p-3 text-sm">
-              <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-start justify-between gap-2 sm:items-center">
                 <div>
                   <div className="font-semibold">{item.commodity.replace('_', ' ')} | {item.alert_type}</div>
                   <div className="text-xs text-muted">
                     {item.threshold.toFixed(2)} {item.currency} | Cooldown {item.cooldown_minutes}m | Email {item.email_notifications_enabled ? 'On' : 'Off'}
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex w-full gap-2 sm:w-auto">
                   <button
                     type="button"
                     onClick={() => toggleAlert.mutate({ alertId: item.id, enabled: !item.enabled })}
-                    className={item.enabled ? 'btn-primary' : 'btn-ghost'}
+                    className={item.enabled ? 'btn-primary flex-1 sm:flex-none' : 'btn-ghost flex-1 sm:flex-none'}
                   >
                     {item.enabled ? 'Enabled' : 'Disabled'}
                   </button>
-                  <button type="button" onClick={() => deleteAlert.mutate(item.id)} className="btn-ghost" style={{ color: 'var(--danger)' }}>
+                  <button type="button" onClick={() => deleteAlert.mutate(item.id)} className="btn-ghost flex-1 sm:flex-none" style={{ color: 'var(--danger)' }}>
                     Delete
                   </button>
                 </div>

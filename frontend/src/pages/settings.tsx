@@ -183,7 +183,7 @@ export function SettingsPage() {
           </label>
         </div>
         {!!prefError && <p className="mt-3 text-sm" style={{ color: 'var(--danger)' }}>{prefError}</p>}
-        <button type="button" onClick={saveUserPreferences} disabled={updateMutation.isPending} className="btn-primary mt-4">
+        <button type="button" onClick={saveUserPreferences} disabled={updateMutation.isPending} className="btn-primary mt-4 w-full sm:w-auto">
           {updateMutation.isPending ? 'Saving...' : 'Save Settings'}
         </button>
       </motion.section>
@@ -217,7 +217,7 @@ export function SettingsPage() {
           </label>
         </div>
         {!!alertError && <p className="mt-3 text-sm" style={{ color: 'var(--danger)' }}>{alertError}</p>}
-        <button type="button" onClick={saveAlertPreferences} disabled={updateMutation.isPending} className="btn-primary mt-4">
+        <button type="button" onClick={saveAlertPreferences} disabled={updateMutation.isPending} className="btn-primary mt-4 w-full sm:w-auto">
           {updateMutation.isPending ? 'Saving...' : 'Save Settings'}
         </button>
       </motion.section>
@@ -242,7 +242,7 @@ export function SettingsPage() {
           ))}
         </div>
         {!!themeError && <p className="mt-3 text-sm" style={{ color: 'var(--danger)' }}>{themeError}</p>}
-        <button type="button" onClick={saveThemePreferences} disabled={updateMutation.isPending} className="btn-primary mt-4">
+        <button type="button" onClick={saveThemePreferences} disabled={updateMutation.isPending} className="btn-primary mt-4 w-full sm:w-auto">
           {updateMutation.isPending ? 'Saving...' : 'Save Settings'}
         </button>
       </motion.section>
@@ -269,7 +269,7 @@ export function SettingsPage() {
           </label>
         </div>
         {!!modelError && <p className="mt-3 text-sm" style={{ color: 'var(--danger)' }}>{modelError}</p>}
-        <button type="button" onClick={saveModelPreferences} disabled={updateMutation.isPending} className="btn-primary mt-4">
+        <button type="button" onClick={saveModelPreferences} disabled={updateMutation.isPending} className="btn-primary mt-4 w-full sm:w-auto">
           {updateMutation.isPending ? 'Saving...' : 'Save Settings'}
         </button>
       </motion.section>

@@ -78,7 +78,7 @@ export function TrainPage() {
             <option value={7}>7D</option>
             <option value={30}>30D</option>
           </select>
-          <button onClick={() => trainMutation.mutate()} className="btn-primary" disabled={isPolling || trainMutation.isPending}>
+          <button onClick={() => trainMutation.mutate()} className="btn-primary w-full md:w-auto" disabled={isPolling || trainMutation.isPending}>
             {isPolling || trainMutation.isPending ? 'Initiating...' : 'Run Training'}
           </button>
         </div>

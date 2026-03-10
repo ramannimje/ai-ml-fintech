@@ -95,7 +95,7 @@ export function AssistantTimeline({
   }, [messages.length, isStreaming, showJump]);
 
   return (
-    <section className="assistant-panel relative h-[58vh] min-h-[480px] overflow-hidden p-3 md:p-4">
+    <section className="assistant-panel relative h-[50vh] h-[50dvh] min-h-[320px] max-h-[38rem] overflow-hidden p-3 md:h-[58vh] md:min-h-[480px] md:p-4">
       <div
         ref={ref}
         className="h-full overflow-y-auto pr-1"
@@ -110,7 +110,7 @@ export function AssistantTimeline({
       >
         {loading ? <ChatSkeleton /> : null}
         {!loading && !hasMessages ? (
-          <div className="flex h-full min-h-[320px] items-center justify-center p-6 text-center">
+          <div className="flex h-full min-h-[220px] items-center justify-center p-4 text-center sm:min-h-[320px] sm:p-6">
             <div>
               <p className="text-sm text-muted">Ask for investment timing, downside risk, entry/exit levels, or cross-region commodity outlook.</p>
               <p className="mt-2 text-xs text-muted">Responses stream in real time with model-backed reasoning.</p>

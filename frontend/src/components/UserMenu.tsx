@@ -7,7 +7,7 @@ function initials(name?: string | null, email?: string | null): string {
   return source.slice(0, 2).toUpperCase();
 }
 
-export function UserMenu() {
+export function UserMenu({ compact = false }: { compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const { user, logout } = useAuth0();
 
@@ -16,7 +16,7 @@ export function UserMenu() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="panel-soft flex items-center gap-2 rounded-xl px-2 py-1"
+        className={`panel-soft flex min-h-[44px] items-center rounded-xl ${compact ? 'gap-0 px-1.5 py-1.5' : 'gap-2 px-2 py-1'}`}
       >
         {user?.picture ? (
           <img src={user.picture} alt={user.name || 'user'} className="h-8 w-8 rounded-full border" style={{ borderColor: 'var(--gold-soft)' }} />
@@ -28,7 +28,7 @@ export function UserMenu() {
             {initials(user?.name, user?.email)}
           </span>
         )}
-        <span className="max-w-[130px] truncate text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--text)' }}>
+        <span className={`max-w-[130px] truncate text-xs font-semibold uppercase tracking-[0.08em] ${compact ? 'hidden' : 'hidden sm:block'}`} style={{ color: 'var(--text)' }}>
           {user?.name || user?.email || 'User'}
         </span>
       </button>

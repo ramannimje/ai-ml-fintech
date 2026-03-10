@@ -162,12 +162,12 @@ export function CommodityPage() {
 
       <section className="panel rounded-2xl p-5">
         <div className="flex flex-wrap gap-2">
-          <select value={region} onChange={(e) => onRegion(e.target.value as Region)} className="ui-input max-w-[10rem]">
+          <select value={region} onChange={(e) => onRegion(e.target.value as Region)} className="ui-input w-full max-w-full sm:w-auto sm:max-w-[10rem]">
             <option value="india">India</option>
             <option value="us">US</option>
             <option value="europe">Europe</option>
           </select>
-          <select value={range} onChange={(e) => setRange(e.target.value as typeof ranges[number])} className="ui-input max-w-[8rem]">
+          <select value={range} onChange={(e) => setRange(e.target.value as typeof ranges[number])} className="ui-input w-full max-w-full sm:w-auto sm:max-w-[8rem]">
             {ranges.map((r) => (
               <option key={r} value={r}>
                 {r}
@@ -175,7 +175,7 @@ export function CommodityPage() {
             ))}
           </select>
           {[7, 30, 90].map((h) => (
-            <button key={h} onClick={() => setHorizon(h)} aria-pressed={horizon === h} className={horizon === h ? 'btn-primary' : 'btn-ghost'}>
+            <button key={h} onClick={() => setHorizon(h)} aria-pressed={horizon === h} className={horizon === h ? 'btn-primary flex-1 sm:flex-none' : 'btn-ghost flex-1 sm:flex-none'}>
               {h}D horizon
             </button>
           ))}
@@ -200,7 +200,7 @@ export function CommodityPage() {
       </section>
 
       <section className="panel p-5">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-2xl font-semibold">AI Market Brief</h2>
           <span
             className="rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em]"
@@ -283,7 +283,7 @@ export function CommodityPage() {
 
           <div className="mt-4 space-y-2">
             {alerts.data?.map((item) => (
-              <div key={item.id} className="panel-soft flex items-center justify-between rounded-xl p-3 text-sm">
+              <div key={item.id} className="panel-soft flex flex-col items-start justify-between gap-3 rounded-xl p-3 text-sm sm:flex-row sm:items-center">
                 <div>
                   <div className="font-semibold">{item.commodity.replace('_', ' ')} {item.alert_type}</div>
                   <div className="text-xs text-muted">{item.threshold.toFixed(2)} {item.currency} ({item.unit})</div>
@@ -298,7 +298,7 @@ export function CommodityPage() {
         </article>
 
         <article className="panel p-5">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-2xl font-semibold">Alert History</h2>
             <button type="button" onClick={() => evaluateAlerts.mutate()} disabled={evaluateAlerts.isPending} className="btn-primary">
               {evaluateAlerts.isPending ? 'Checking...' : 'Run Alert Check'}

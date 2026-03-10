@@ -39,11 +39,11 @@ export function CommodityChart({ data }: { data: Point[] }) {
       };
 
   return (
-    <div className="panel h-[22rem] rounded-2xl p-4">
+    <div className="panel h-[13.5rem] rounded-2xl p-2.5 sm:h-[18rem] sm:p-3 md:h-[22rem] md:p-4">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data}>
           <XAxis dataKey="date" hide />
-          <YAxis yAxisId="price" stroke={palette.axis} tickLine={false} axisLine={false} width={70} />
+          <YAxis yAxisId="price" stroke={palette.axis} tickLine={false} axisLine={false} width={48} tick={{ fontSize: 11 }} />
           <YAxis yAxisId="vol" orientation="right" hide />
           <Tooltip
             contentStyle={{
@@ -51,6 +51,8 @@ export function CommodityChart({ data }: { data: Point[] }) {
               borderColor: palette.grid,
               borderRadius: 10,
               color: isDark ? '#eef3fc' : '#102a52',
+              padding: '0.55rem 0.7rem',
+              fontSize: '0.75rem',
             }}
           />
           <Area yAxisId="price" dataKey="bandHigh" stroke="none" fill={palette.band} fillOpacity={0.45} />

@@ -28,7 +28,7 @@ export function AssistantComposer({
       </div>
       <div className="flex flex-col gap-2 md:flex-row md:items-end">
         <textarea
-          className="ui-input min-h-[92px] flex-1 resize-none"
+          className="ui-input min-h-[120px] flex-1 resize-none md:min-h-[92px]"
           value={value}
           disabled={disabled}
           onChange={(event) => setValue(event.target.value)}
@@ -40,7 +40,7 @@ export function AssistantComposer({
             }
           }}
         />
-        <button type="button" className="btn-primary h-[44px] min-w-[132px]" disabled={disabled || !value.trim()} onClick={() => void submit()}>
+        <button type="button" className="btn-primary h-[44px] w-full min-w-[132px] md:w-auto" disabled={disabled || !value.trim()} onClick={() => void submit()}>
           {disabled ? 'Streaming...' : 'Send'}
         </button>
       </div>
