@@ -17,7 +17,7 @@ from app.services.whatsapp_service import WhatsAppService
 logger = logging.getLogger(__name__)
 
 REGION_SYMBOL = {"india": "₹", "us": "$", "europe": "€"}
-UNIT_ALIAS = {"10g_24k": "10g", "exchange_standard": "unit"}
+UNIT_ALIAS = {"10g_24k": "10g", "g": "g"}
 
 
 def _format_indian_number(value: float) -> str:

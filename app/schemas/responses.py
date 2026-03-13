@@ -90,10 +90,17 @@ class RegionalPredictionResponse(BaseModel):
     unit: str
     currency: str
     forecast_horizon: date = Field(default=date(2026, 12, 31))
+    current_spot_price: float
+    spot_timestamp: datetime
     point_forecast: float
+    forecast_vs_spot_pct: float
     confidence_interval: tuple[float, float]
+    confidence_method: str
     scenario: Literal["bull", "base", "bear"]
     scenario_forecasts: dict[str, float]
+    forecast_basis_label: str
+    macro_sensitivity_tags: list[str] = Field(default_factory=list)
+    last_calibrated_at: Optional[datetime] = None
     model_used: str
 
 

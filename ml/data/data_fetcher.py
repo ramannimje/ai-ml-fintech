@@ -23,6 +23,11 @@ MACRO_SYMBOLS = {
     "treasury_10y": "^TNX",  # 10-Year Treasury Yield (inflation proxy)
 }
 
+FX_SYMBOLS = {
+    "india": ("INR=X", False),
+    "europe": ("EURUSD=X", True),
+}
+
 
 class MarketDataFetcher:
     def __init__(self, cache_dir: str) -> None:
@@ -34,6 +39,9 @@ class MarketDataFetcher:
 
     def _macro_cache_path(self, symbol_key: str) -> Path:
         return self.cache_dir / f"macro_{symbol_key}.csv"
+
+    def _fx_cache_path(self, region: str) -> Path:
+        return self.cache_dir / f"fx_{region}.csv"
 
     @staticmethod
     def _normalize_download(df: pd.DataFrame) -> pd.DataFrame:
@@ -302,3 +310,46 @@ class MarketDataFetcher:
             path = legacy
         data = pd.read_csv(path, parse_dates=["Date"])
         return data["Date"].max().to_pydatetime()
+
+    def get_fx_history(self, region: str, period: str = "1y") -> pd.Series:
+        region = region.lower()
+        if region == "us":
+            return pd.Series(dtype=float)
+        symbol_meta = FX_SYMBOLS.get(region)
+        if symbol_meta is None:
+            return pd.Series(dtype=float)
+
+        symbol, invert = symbol_meta
+        path = self._fx_cache_path(region)
+        cached = pd.read_csv(path, parse_dates=["Date"]) if path.exists() else pd.DataFrame()
+
+        refresh_on_request = os.getenv("DATA_REFRESH_ON_REQUEST", "").strip().lower() in {"1", "true", "yes"}
+        if cached.empty or refresh_on_request:
+            try:
+                fresh = yf.download(symbol, period=period, auto_adjust=False, progress=False, threads=False).reset_index()
+                if isinstance(fresh.columns, pd.MultiIndex):
+                    fresh.columns = [str(col[0]) for col in fresh.columns]
+                else:
+                    fresh.columns = [str(col) for col in fresh.columns]
+                if "Date" not in fresh.columns and "Datetime" in fresh.columns:
+                    fresh = fresh.rename(columns={"Datetime": "Date"})
+            except Exception as exc:
+                logger.warning("fx_download_failed symbol=%s error=%s", symbol, exc)
+                fresh = cached.copy()
+        else:
+            fresh = cached.copy()
+
+        if fresh.empty:
+            return pd.Series(dtype=float)
+
+        if "Date" not in fresh.columns or "Close" not in fresh.columns:
+            return pd.Series(dtype=float)
+
+        out = fresh[["Date", "Close"]].drop_duplicates("Date").sort_values("Date").ffill().dropna()
+        if invert:
+            out["Close"] = 1.0 / out["Close"].replace(0, pd.NA)
+        out = out.dropna()
+        out.to_csv(path, index=False)
+        filtered = self._apply_period_filter(out.rename(columns={"Close": "fx_rate"}), period)
+        series = filtered.set_index(pd.to_datetime(filtered["Date"]).dt.normalize())["fx_rate"].astype(float)
+        return series

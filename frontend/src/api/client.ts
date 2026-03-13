@@ -95,14 +95,21 @@ export const predictionSchema = z.object({
   unit: z.string(),
   currency: z.string(),
   forecast_horizon: z.string(),
+  current_spot_price: z.number(),
+  spot_timestamp: z.string(),
   point_forecast: z.number(),
+  forecast_vs_spot_pct: z.number(),
   confidence_interval: z.tuple([z.number(), z.number()]),
+  confidence_method: z.string(),
   scenario: z.enum(['bull', 'base', 'bear']),
   scenario_forecasts: z.object({
     bull: z.number(),
     base: z.number(),
     bear: z.number(),
   }),
+  forecast_basis_label: z.string(),
+  macro_sensitivity_tags: z.array(z.string()),
+  last_calibrated_at: z.string().nullable().optional(),
   model_used: z.string(),
 });
 

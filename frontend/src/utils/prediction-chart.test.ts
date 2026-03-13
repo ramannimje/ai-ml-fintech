@@ -21,10 +21,17 @@ const prediction: PredictionResponse = {
   unit: 'oz',
   currency: 'USD',
   forecast_horizon: '2026-02-02',
+  current_spot_price: 104,
+  spot_timestamp: '2026-01-03T00:00:00.000Z',
   point_forecast: 110,
+  forecast_vs_spot_pct: 5.7692,
   confidence_interval: [108, 112],
+  confidence_method: 'spot_anchored_volatility_90',
   scenario: 'base',
   scenario_forecasts: { bull: 114, base: 110, bear: 106 },
+  forecast_basis_label: '7D base scenario (spot-anchored consensus)',
+  macro_sensitivity_tags: ['DXY ↓', 'Fed Hold', 'Risk-Off'],
+  last_calibrated_at: '2026-01-03T00:00:00.000Z',
   model_used: 'test_model',
 };
 

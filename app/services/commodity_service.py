@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 import pandas as pd
@@ -30,8 +30,8 @@ from ml.data.data_fetcher import MarketDataFetcher
 
 SUPPORTED_COMMODITIES = ("gold", "silver", "crude_oil")
 COMMODITY_REGION_UNITS = {
-    "gold": {"india": "10g_24k", "us": "oz", "europe": "exchange_standard"},
-    "silver": {"india": "10g", "us": "oz", "europe": "exchange_standard"},
+    "gold": {"india": "10g_24k", "us": "oz", "europe": "g"},
+    "silver": {"india": "10g", "us": "oz", "europe": "g"},
     "crude_oil": {"india": "barrel", "us": "barrel", "europe": "barrel"},
 }
 logger = logging.getLogger(__name__)
@@ -146,7 +146,11 @@ class CommodityService:
                 series=series,
                 period=period,
             )
-        return self.normalization_service.to_historical_response(series=series, fx_rates=fx)
+        return self.normalization_service.to_historical_response(
+            series=series,
+            fx_rates=fx,
+            fx_history=self.fetcher.get_fx_history(region=region, period=period),
+        )
 
     async def train(
         self, session: AsyncSession, commodity: str, region: str, horizon: int = 1, job_id: int | None = None
@@ -226,6 +230,14 @@ class CommodityService:
         region = self._validate_region(region)
         series = self.ingestion_service.load_historical_series(commodity=commodity, region=region)
         fx = get_fx_rates()
+        live_quotes = await self.ingestion_service.fetch_live_quotes([commodity])
+        live_quote = live_quotes.get(commodity)
+        current_spot_usd_oz = (
+            float(live_quote.price_usd_per_troy_oz)
+            if live_quote is not None
+            else float(series.bars[-1].close_usd_per_troy_oz)
+        )
+        spot_timestamp = live_quote.observed_at if live_quote is not None else datetime.now(timezone.utc)
         return await self.forecast_service.generate_prediction(
             session=session,
             commodity=commodity,
@@ -237,5 +249,7 @@ class CommodityService:
             unit=self._unit_for(commodity, region),
             currency=REGION_CURRENCY[region],
             to_regional_price=self._to_regional_price,
+            current_spot_usd_oz=current_spot_usd_oz,
+            spot_timestamp=spot_timestamp,
             latest_metrics_loader=self.latest_metrics,
         )

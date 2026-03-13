@@ -93,10 +93,10 @@ class TestFormatPrice:
         assert "oz" in result
 
     def test_format_price_europe(self) -> None:
-        """Europe format: € symbol, /exchange_standard unit."""
+        """Europe format: € symbol, /g unit."""
         result = format_price(74.12, "europe")
         assert "€" in result
-        assert "/ exchange_standard" in result
+        assert "/ g" in result
 
 
 class TestAllRegionsPrice:

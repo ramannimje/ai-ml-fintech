@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pandas as pd
+
 from app.schemas.market_data import NormalizedHistoricalSeries, NormalizedLiveQuote
 from app.schemas.responses import LivePriceResponse, RegionalHistoricalPoint, RegionalHistoricalResponse
 
@@ -30,14 +32,32 @@ class MarketDataNormalizationService:
         self,
         series: NormalizedHistoricalSeries,
         fx_rates: dict[str, float],
+        fx_history: pd.Series | None = None,
     ) -> RegionalHistoricalResponse:
+        def _fx_for_date(date_value):
+            if fx_history is None or fx_history.empty or series.region == "us":
+                return fx_rates
+            ts = pd.Timestamp(date_value).normalize()
+            rate = fx_history.get(ts)
+            if rate is None:
+                history = fx_history.loc[:ts]
+                rate = history.iloc[-1] if not history.empty else None
+            if rate is None:
+                return fx_rates
+            regional_fx = dict(fx_rates)
+            if series.region == "india":
+                regional_fx["INR"] = float(rate)
+            elif series.region == "europe":
+                regional_fx["EUR"] = float(rate)
+            return regional_fx
+
         points = [
             RegionalHistoricalPoint(
                 date=bar.date,
-                open=round(self._to_regional_price(bar.open_usd_per_troy_oz, series.region, fx_rates), 4),
-                high=round(self._to_regional_price(bar.high_usd_per_troy_oz, series.region, fx_rates), 4),
-                low=round(self._to_regional_price(bar.low_usd_per_troy_oz, series.region, fx_rates), 4),
-                close=round(self._to_regional_price(bar.close_usd_per_troy_oz, series.region, fx_rates), 4),
+                open=round(self._to_regional_price(bar.open_usd_per_troy_oz, series.region, _fx_for_date(bar.date)), 4),
+                high=round(self._to_regional_price(bar.high_usd_per_troy_oz, series.region, _fx_for_date(bar.date)), 4),
+                low=round(self._to_regional_price(bar.low_usd_per_troy_oz, series.region, _fx_for_date(bar.date)), 4),
+                close=round(self._to_regional_price(bar.close_usd_per_troy_oz, series.region, _fx_for_date(bar.date)), 4),
                 volume=bar.volume,
             )
             for bar in series.bars

@@ -18,7 +18,7 @@ REGION_CURRENCY: dict[str, str] = {
 REGION_UNIT: dict[str, str] = {
     "india": "10g_24k",
     "us": "oz",
-    "europe": "exchange_standard",
+    "europe": "g",
 }
 
 REGION_SYMBOL: dict[str, str] = {
@@ -93,7 +93,7 @@ def format_price(price: float, region: str) -> str:
     Examples:
         india  → ₹74,520 / 10g_24k
         us     → $2,315 / oz
-        europe → €74.12 / exchange_standard
+        europe → €74.12 / g
     """
     region = region.lower()
     symbol = REGION_SYMBOL.get(region, "$")

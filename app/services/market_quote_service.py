@@ -17,8 +17,8 @@ ALERT_COMMODITY_SYMBOLS = {
 }
 
 ALERT_COMMODITY_UNITS = {
-    "gold": {"india": "10g_24k", "us": "oz", "europe": "exchange_standard"},
-    "silver": {"india": "10g", "us": "oz", "europe": "exchange_standard"},
+    "gold": {"india": "10g_24k", "us": "oz", "europe": "g"},
+    "silver": {"india": "10g", "us": "oz", "europe": "g"},
     "crude_oil": {"india": "barrel", "us": "barrel", "europe": "barrel"},
     "natural_gas": {"india": "mmbtu", "us": "mmbtu", "europe": "mmbtu"},
     "copper": {"india": "lb", "us": "lb", "europe": "lb"},

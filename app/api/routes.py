@@ -59,7 +59,7 @@ market_signal_service = MarketSignalService()
 REGION_CATALOG = [
     RegionDefinition(id="india", currency="INR", unit="10g"),
     RegionDefinition(id="us", currency="USD", unit="oz"),
-    RegionDefinition(id="europe", currency="EUR", unit="exchange_standard"),
+    RegionDefinition(id="europe", currency="EUR", unit="g"),
 ]
 
 COMMODITY_CATALOG = [

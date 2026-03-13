@@ -48,10 +48,17 @@ export interface PredictionResponse {
   unit: string;
   currency: string;
   forecast_horizon: string;
+  current_spot_price: number;
+  spot_timestamp: string;
   point_forecast: number;
+  forecast_vs_spot_pct: number;
   confidence_interval: [number, number];
+  confidence_method: string;
   scenario: 'bull' | 'base' | 'bear';
   scenario_forecasts: Record<'bull' | 'base' | 'bear', number>;
+  forecast_basis_label: string;
+  macro_sensitivity_tags: string[];
+  last_calibrated_at?: string | null;
   model_used: string;
 }
 

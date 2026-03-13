@@ -8,6 +8,11 @@ import type { Commodity, HistoricalResponse, PredictionResponse, Region } from '
 const regions: Region[] = ['india', 'us', 'europe'];
 const commodities: Commodity[] = ['gold', 'silver', 'crude_oil'];
 
+function isFallbackPrediction(prediction: PredictionResponse | undefined): boolean {
+  if (!prediction) return false;
+  return prediction.model_used === 'naive_fallback_v1' || !prediction.last_calibrated_at;
+}
+
 export function DashboardPage() {
   const queryClient = useQueryClient();
   const settings = useQuery({
@@ -80,6 +85,8 @@ export function DashboardPage() {
     return out;
   }, [predictionQueries]);
 
+  const momentumWindowDays = predictionHorizon >= 30 ? 30 : predictionHorizon >= 7 ? 7 : 1;
+
   const summary = useMemo(() => {
     const list = data ?? [];
     if (list.length < 2) return { spread: 0, avg: 0, vol: 0 };
@@ -96,12 +103,13 @@ export function DashboardPage() {
       commodities.map((commodity) => {
         const hist = historicalByCommodity[commodity]?.data ?? [];
         const last = hist[hist.length - 1]?.close ?? 0;
-        const prev = hist[hist.length - 2]?.close ?? last;
+        const lookbackIndex = Math.max(0, hist.length - 1 - momentumWindowDays);
+        const prev = hist[lookbackIndex]?.close ?? last;
         const delta = last - prev;
         const pct = prev ? (delta / prev) * 100 : 0;
-        return { commodity, delta, pct, bullish: delta >= 0 };
+        return { commodity, delta, pct, bullish: delta >= 0, windowDays: momentumWindowDays };
       }),
-    [historicalByCommodity],
+    [historicalByCommodity, momentumWindowDays],
   );
 
   const chartData = useMemo(() => {
@@ -142,20 +150,29 @@ export function DashboardPage() {
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
                 <span className="text-muted">
-                  Predicted ({predictionHorizon}D): {activePrediction?.point_forecast?.toFixed(2) ?? '...'} {activeItem?.currency ?? ''}
+                  {activePrediction?.forecast_basis_label ?? `Predicted (${predictionHorizon}D)`}: {activePrediction?.point_forecast?.toFixed(2) ?? '...'} {activeItem?.currency ?? ''}
                 </span>
                 {activeTrend && (
                   <span className={`font-semibold ${activeTrend.bullish ? 'status-up' : 'status-down'}`}>
-                    {activeTrend.bullish ? 'Up' : 'Down'} {Math.abs(activeTrend.pct).toFixed(2)}%
+                    {activeTrend.windowDays}D momentum: {activeTrend.bullish ? 'Up' : 'Down'} {Math.abs(activeTrend.pct).toFixed(2)}%
                   </span>
                 )}
               </div>
+              <p className="mt-2 text-xs text-muted">
+                Spot anchor: {activePrediction?.current_spot_price?.toFixed(2) ?? activeItem?.live_price?.toFixed(2) ?? '...'} {activeItem?.currency ?? ''} | Forecast vs spot: {activePrediction?.forecast_vs_spot_pct?.toFixed(2) ?? '...'}%
+              </p>
+              {isFallbackPrediction(activePrediction) && (
+                <p className="mt-2 text-xs font-semibold" style={{ color: 'var(--danger)' }}>
+                  Warning: Fallback model active
+                </p>
+              )}
             </div>
             <div className="panel-soft rounded-2xl px-4 py-3">
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted">Confidence band</p>
               <p className="mt-2 text-base font-semibold" style={{ color: 'var(--text)' }}>
                 {activePrediction?.confidence_interval?.map((x) => x.toFixed(2)).join(' - ') ?? '...'}
               </p>
+              <p className="mt-1 text-[11px] text-muted">{activePrediction?.confidence_method ?? 'spot_anchored_volatility_90'}</p>
             </div>
           </div>
         </div>
@@ -221,10 +238,13 @@ export function DashboardPage() {
               </button>
             </div>
             <p className="mt-3 text-sm text-muted">
-              Predicted ({predictionHorizon}D): {predictionByCommodity[item.commodity]?.point_forecast?.toFixed(2) ?? '...'} {item.currency}
+              {predictionByCommodity[item.commodity]?.forecast_basis_label ?? `Predicted (${predictionHorizon}D)`}: {predictionByCommodity[item.commodity]?.point_forecast?.toFixed(2) ?? '...'} {item.currency}
             </p>
             <p className="mt-1 text-xs text-muted">
               CI: {predictionByCommodity[item.commodity]?.confidence_interval?.map((x) => x.toFixed(2)).join(' - ') ?? '...'}
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              Spot: {predictionByCommodity[item.commodity]?.current_spot_price?.toFixed(2) ?? item.live_price.toFixed(2)} {item.currency} | Delta: {predictionByCommodity[item.commodity]?.forecast_vs_spot_pct?.toFixed(2) ?? '...'}%
             </p>
             <p className="mt-3 text-sm font-semibold text-accent">
               {predictionByCommodity[item.commodity]?.scenario === 'bull'
@@ -233,7 +253,21 @@ export function DashboardPage() {
                   ? 'Bearish Bias'
                   : 'Base Scenario'}
             </p>
-            <p className="mt-1 text-xs text-muted">{item.unit} | {item.source}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {predictionByCommodity[item.commodity]?.macro_sensitivity_tags?.map((tag) => (
+                <span key={`${item.commodity}-${tag}`} className="card-chip">
+                  {tag}
+                </span>
+              ))}
+              {isFallbackPrediction(predictionByCommodity[item.commodity]) && (
+                <span className="card-chip" style={{ borderColor: 'color-mix(in srgb, var(--danger) 35%, var(--border))', color: 'var(--danger)' }}>
+                  Warning: Fallback Model Active
+                </span>
+              )}
+            </div>
+            <p className="mt-2 text-xs text-muted">
+              Unit: {item.unit} | Last calibrated: {predictionByCommodity[item.commodity]?.last_calibrated_at ? new Date(predictionByCommodity[item.commodity]!.last_calibrated_at!).toLocaleString() : 'model fallback'} | {item.source}
+            </p>
             <Link to={`/commodity/${item.commodity}?region=${region}`} className="mt-4 inline-flex text-sm font-semibold text-accent hover:underline">
               Open detailed analysis
             </Link>
@@ -268,7 +302,7 @@ export function DashboardPage() {
             <p className={`mt-2 text-[1.9rem] font-semibold tracking-tight ${trend.bullish ? 'status-up' : 'status-down'}`}>
               {trend.bullish ? 'Up' : 'Down'} {Math.abs(trend.pct).toFixed(2)}%
             </p>
-            <p className="text-sm text-muted">Absolute move: {trend.delta.toFixed(2)}</p>
+            <p className="text-sm text-muted">{trend.windowDays}D absolute move: {trend.delta.toFixed(2)}</p>
           </article>
         ))}
       </section>

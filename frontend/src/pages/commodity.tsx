@@ -153,6 +153,8 @@ export function CommodityPage() {
     setSearch(search);
   };
 
+  const fallbackActive = prediction.data?.model_used === 'naive_fallback_v1' || !prediction.data?.last_calibrated_at;
+
   return (
     <div className="space-y-6">
       <section>
@@ -189,13 +191,28 @@ export function CommodityPage() {
           <p className="kpi-label">Prediction Overlay</p>
           <p className="kpi-value kpi-value-accent">{prediction.data?.point_forecast?.toFixed(2) ?? '—'} {prediction.data?.currency ?? ''}</p>
           <p className="text-sm text-muted">Confidence interval: {prediction.data?.confidence_interval?.join(' - ') ?? '—'}</p>
-          <p className="mt-2 text-sm font-semibold text-accent">Scenario: {prediction.data?.scenario ?? '—'}</p>
+          <p className="mt-1 text-sm text-muted">Spot anchor: {prediction.data?.current_spot_price?.toFixed(2) ?? '—'} {prediction.data?.currency ?? ''} | {prediction.data?.confidence_method ?? 'spot_anchored_volatility_90'}</p>
+          <p className="mt-2 text-sm font-semibold text-accent">{prediction.data?.forecast_basis_label ?? 'Base scenario'}</p>
+          <p className="mt-1 text-xs text-muted">Forecast vs spot: {prediction.data?.forecast_vs_spot_pct?.toFixed(2) ?? '—'}% | Last calibrated: {prediction.data?.last_calibrated_at ? new Date(prediction.data.last_calibrated_at).toLocaleString() : 'model fallback'}</p>
+          {fallbackActive && (
+            <p className="mt-2 text-xs font-semibold" style={{ color: 'var(--danger)' }}>
+              Warning: Fallback model active for this region
+            </p>
+          )}
         </article>
         <article className="panel p-5">
           <p className="kpi-label">Scenario Forecasts</p>
           <p className="mt-3 text-sm">Bull: <span className="text-accent">{prediction.data?.scenario_forecasts?.bull?.toFixed(2) ?? '—'}</span></p>
           <p className="text-sm">Base: {prediction.data?.scenario_forecasts?.base?.toFixed(2) ?? '—'}</p>
           <p className="text-sm">Bear: {prediction.data?.scenario_forecasts?.bear?.toFixed(2) ?? '—'}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {prediction.data?.macro_sensitivity_tags?.map((tag) => (
+              <span key={tag} className="card-chip">
+                {tag}
+              </span>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-muted">Unit: {prediction.data?.unit ?? historical.data?.unit ?? '—'}</p>
         </article>
       </section>
 
