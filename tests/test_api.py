@@ -24,8 +24,8 @@ def test_silver_india_unit_is_10g() -> None:
 
 
 def test_live_price_success(monkeypatch) -> None:
-    async def _mock_live(region=None):
-        _ = region
+    async def _mock_live(region=None, session=None):
+        _ = region, session
         return [
             LivePriceResponse(
                 commodity="gold",
@@ -45,8 +45,8 @@ def test_live_price_success(monkeypatch) -> None:
 
 
 def test_fallback_source(monkeypatch) -> None:
-    async def _mock_live(region=None):
-        _ = region
+    async def _mock_live(region=None, session=None):
+        _ = region, session
         return [
             LivePriceResponse(
                 commodity="silver",
@@ -66,8 +66,8 @@ def test_fallback_source(monkeypatch) -> None:
 
 
 def test_region_unit_conversion(monkeypatch) -> None:
-    async def _mock_hist(commodity: str, region: str, period: str):
-        _ = commodity, period
+    async def _mock_hist(commodity: str, region: str, period: str, session=None):
+        _ = commodity, period, session
         return RegionalHistoricalResponse(
             commodity="gold",
             region=region,
@@ -106,7 +106,7 @@ def test_prediction_endpoint(monkeypatch) -> None:
 
 
 def test_invalid_region(monkeypatch) -> None:
-    async def _mock_live(region=None):
+    async def _mock_live(region=None, session=None):
         raise ValueError("Unsupported region")
 
     monkeypatch.setattr(routes.service, "live_prices", _mock_live)
@@ -116,8 +116,15 @@ def test_invalid_region(monkeypatch) -> None:
 
 
 def test_training_trigger(monkeypatch) -> None:
-    async def _mock_train(session, commodity: str, region: str, horizon: int):
+    class _Job:
+        id = 1
+
+    async def _mock_create_job(session, commodity: str, region: str, horizon: int):
         _ = session, commodity, region, horizon
+        return _Job()
+
+    async def _mock_train(session, commodity: str, region: str, horizon: int, job_id: int | None = None):
+        _ = session, commodity, region, horizon, job_id
         return TrainResponse(
             commodity="silver",
             region="europe",
@@ -127,10 +134,11 @@ def test_training_trigger(monkeypatch) -> None:
             mape=1.2,
         )
 
+    monkeypatch.setattr(routes.service, "create_training_job", _mock_create_job)
     monkeypatch.setattr(routes.service, "train", _mock_train)
     response = client.post("/api/train/silver/europe?horizon=7")
-    assert response.status_code == 200
-    assert response.json()["region"] == "europe"
+    assert response.status_code == 202
+    assert response.json()["status"] == "processing"
 
 
 def test_persistence(monkeypatch) -> None:
@@ -149,8 +157,15 @@ def test_persistence(monkeypatch) -> None:
     monkeypatch.setattr(routes.service, "latest_metrics", _latest)
     # Persistence is represented by saved model metadata. Existing routes don't expose metrics endpoint now,
     # so this check focuses on train endpoint payload carrying model_version.
-    async def _mock_train(session, commodity: str, region: str, horizon: int):
+    class _Job:
+        id = 1
+
+    async def _mock_create_job(session, commodity: str, region: str, horizon: int):
         _ = session, commodity, region, horizon
+        return _Job()
+
+    async def _mock_train(session, commodity: str, region: str, horizon: int, job_id: int | None = None):
+        _ = session, commodity, region, horizon, job_id
         return TrainResponse(
             commodity="gold",
             region="us",
@@ -160,17 +175,25 @@ def test_persistence(monkeypatch) -> None:
             mape=1.1,
         )
 
+    monkeypatch.setattr(routes.service, "create_training_job", _mock_create_job)
     monkeypatch.setattr(routes.service, "train", _mock_train)
     response = client.post("/api/train/gold/us?horizon=1")
-    assert response.status_code == 200
-    assert response.json()["model_version"] == "persisted_v1"
+    assert response.status_code == 202
+    assert response.json()["status"] == "processing"
 
 
 @pytest.mark.parametrize("commodity", ["gold", "silver", "crude_oil"])
 @pytest.mark.parametrize("region", ["india", "us", "europe"])
 def test_training_success_multi_commodity_region(monkeypatch, commodity: str, region: str) -> None:
-    async def _mock_train(session, commodity: str, region: str, horizon: int):
-        _ = session, horizon
+    class _Job:
+        id = 1
+
+    async def _mock_create_job(session, commodity: str, region: str, horizon: int):
+        _ = session, commodity, region, horizon
+        return _Job()
+
+    async def _mock_train(session, commodity: str, region: str, horizon: int, job_id: int | None = None):
+        _ = session, horizon, job_id
         return TrainResponse(
             commodity=commodity,
             region=region,
@@ -180,30 +203,119 @@ def test_training_success_multi_commodity_region(monkeypatch, commodity: str, re
             mape=1.1,
         )
 
+    monkeypatch.setattr(routes.service, "create_training_job", _mock_create_job)
     monkeypatch.setattr(routes.service, "train", _mock_train)
     response = client.post(f"/api/train/{commodity}/{region}?horizon=7")
-    assert response.status_code == 200
+    assert response.status_code == 202
     payload = response.json()
-    assert payload["commodity"] == commodity
-    assert payload["region"] == region
+    assert payload["status"] == "processing"
+    assert commodity in payload["message"]
+    assert region in payload["message"]
 
 
 def test_training_failure_case_structured_error(monkeypatch) -> None:
-    async def _mock_train(session, commodity: str, region: str, horizon: int):
+    class _Job:
+        id = 1
+
+    async def _mock_create_job(session, commodity: str, region: str, horizon: int):
         _ = session, commodity, region, horizon
+        return _Job()
+
+    async def _mock_train(session, commodity: str, region: str, horizon: int, job_id: int | None = None):
+        _ = session, commodity, region, horizon, job_id
         raise TrainingError("insert failed")
 
+    monkeypatch.setattr(routes.service, "create_training_job", _mock_create_job)
     monkeypatch.setattr(routes.service, "train", _mock_train)
     response = client.post("/api/train/gold/us?horizon=7")
-    assert response.status_code == 400
-    detail = response.json()["detail"]["error"]
-    assert detail["code"] == "TRAINING_FAILED"
+    assert response.status_code == 202
+    assert response.json()["status"] == "processing"
+
+
+def test_training_status_route_uses_persisted_job_status(monkeypatch) -> None:
+    async def _mock_status(session, commodity: str, region: str):
+        _ = session, commodity, region
+        return {
+            "status": "completed",
+            "message": "Successfully trained xgb",
+            "result": {"best_model": "xgb", "model_version": "xgb_us_v1"},
+        }
+
+    monkeypatch.setattr(routes.service, "get_training_status", _mock_status)
+    response = client.get("/api/train/gold/us/status")
+    assert response.status_code == 200
+    assert response.json()["status"] == "completed"
+
+
+def test_ingestion_backfill_route_queues_job(monkeypatch) -> None:
+    class _Job:
+        id = 42
+
+    async def _mock_create_job(session, commodity: str, region: str, period: str = "1y"):
+        _ = session, commodity, region, period
+        return _Job()
+
+    async def _mock_run_job(session, *, job_id: int):
+        _ = session, job_id
+        return None
+
+    async def _mock_status(session, *, job_id: int):
+        _ = session, job_id
+        return {
+            "job_id": 42,
+            "job_type": "historical_backfill",
+            "status": "queued",
+            "message": "Historical backfill queued for gold/us (1y).",
+            "commodity": "gold",
+            "region": "us",
+            "period": "1y",
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+            "started_at": None,
+            "completed_at": None,
+        }
+
+    monkeypatch.setattr(routes.service, "create_ingestion_backfill_job", _mock_create_job)
+    monkeypatch.setattr(routes.service, "run_ingestion_backfill_job", _mock_run_job)
+    monkeypatch.setattr(routes.service, "get_ingestion_job_status", _mock_status)
+
+    response = client.post("/api/ingestion/backfill/gold/us?range=1y")
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["job_id"] == 42
+    assert payload["status"] == "queued"
+
+
+def test_ingestion_job_status_route_returns_persisted_job(monkeypatch) -> None:
+    async def _mock_status(session, *, job_id: int):
+        _ = session, job_id
+        return {
+            "job_id": 7,
+            "job_type": "historical_backfill",
+            "status": "completed",
+            "message": "Historical backfill completed for gold/us (1y).",
+            "commodity": "gold",
+            "region": "us",
+            "period": "1y",
+            "result": {"rows_loaded": 10},
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+            "started_at": datetime.now(timezone.utc),
+            "completed_at": datetime.now(timezone.utc),
+        }
+
+    monkeypatch.setattr(routes.service, "get_ingestion_job_status", _mock_status)
+    response = client.get("/api/ingestion/jobs/7")
+    assert response.status_code == 200
+    assert response.json()["status"] == "completed"
+    assert response.json()["result"]["rows_loaded"] == 10
 
 
 @pytest.mark.parametrize("commodity", ["gold", "silver", "crude_oil"])
 @pytest.mark.parametrize("region", ["india", "us", "europe"])
 def test_related_api_validation(monkeypatch, commodity: str, region: str) -> None:
-    async def _mock_live(region=None):
+    async def _mock_live(region=None, session=None):
+        _ = session
         reg = region or "us"
         return [
             LivePriceResponse(
@@ -217,8 +329,8 @@ def test_related_api_validation(monkeypatch, commodity: str, region: str) -> Non
             )
         ]
 
-    async def _mock_hist(commodity: str, region: str, period: str):
-        _ = commodity, region, period
+    async def _mock_hist(commodity: str, region: str, period: str, session=None):
+        _ = commodity, region, period, session
         return RegionalHistoricalResponse(
             commodity=commodity,
             region=region,

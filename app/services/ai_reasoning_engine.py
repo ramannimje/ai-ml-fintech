@@ -11,10 +11,19 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import yfinance as yf
 
+from app.core.config import get_settings
 from app.models.chat_history import ChatHistory
-from app.services.commodity_service import CommodityService
 from app.services.market_intelligence import MarketIntelligenceService
 from app.services.market_quote_service import ALERT_COMMODITY_SYMBOLS, MarketQuoteService
+from app.services.market_signal_service import MarketSignalService
+from app.services.feature_store_service import FeatureStoreService
+from app.services.forecast_service import ForecastService
+from app.services.fx_cache import get_fx_rates
+from app.services.ingestion_service import MarketIngestionService
+from app.services.model_registry_service import ModelRegistryService
+from app.services.normalization_service import MarketDataNormalizationService
+from app.services.price_conversion import REGION_CURRENCY, REGION_UNIT, convert_price, troy_oz_to_grams
+from ml.data.data_fetcher import MarketDataFetcher
 
 INTENTS = (
     "market_summary",
@@ -61,6 +70,11 @@ COMMODITY_ALIASES = {
     "natural_gas": ("natural gas", "natgas", "gas", "ng"),
     "copper": ("copper", "cu"),
 }
+COMMODITY_REGION_UNITS = {
+    "gold": {"india": "10g_24k", "us": "oz", "europe": "exchange_standard"},
+    "silver": {"india": "10g", "us": "oz", "europe": "exchange_standard"},
+    "crude_oil": {"india": "barrel", "us": "barrel", "europe": "barrel"},
+}
 
 
 @dataclass(slots=True)
@@ -79,9 +93,20 @@ class QueryContext:
 
 class AIReasoningEngine:
     def __init__(self) -> None:
-        self.commodity_service = CommodityService()
+        settings = get_settings()
+        self.fetcher = MarketDataFetcher(cache_dir=settings.data_cache_dir)
+        self.ingestion_service = MarketIngestionService(fetcher=self.fetcher)
+        self.normalization_service = MarketDataNormalizationService(
+            to_regional_price=self._to_regional_price,
+            unit_for=self._unit_for,
+            region_currency=REGION_CURRENCY,
+        )
+        self.feature_store_service = FeatureStoreService(fetcher=self.fetcher)
+        self.model_registry_service = ModelRegistryService()
+        self.forecast_service = ForecastService(model_registry_service=self.model_registry_service)
         self.intelligence = MarketIntelligenceService()
         self.market_quote = MarketQuoteService()
+        self.market_signal_service = MarketSignalService()
 
     async def build_context(
         self,
@@ -125,6 +150,7 @@ class AIReasoningEngine:
             "regional_market_signal": None,
             "comparison": None,
             "long_term_projection": None,
+            "signal_bundle": None,
         }
 
         current_row = await self._get_live_price(query.commodity, query.region)
@@ -145,6 +171,19 @@ class AIReasoningEngine:
             )
             data["prediction"] = prediction
             data["long_term_projection"] = long_term_projection
+
+        if query.commodity in MODEL_COMMODITIES:
+            try:
+                bundle = await self.market_signal_service.build_market_intelligence(
+                    session=session,
+                    commodity=query.commodity,
+                    region=query.region,
+                    horizon=min(90, max(1, query.horizon_days)),
+                    include_news=query.intent == "trading_outlook",
+                )
+                data["signal_bundle"] = bundle.model_dump(mode="json")
+            except Exception:
+                data["signal_bundle"] = None
 
         if query.intent == "commodity_comparison" and query.comparison_commodity:
             base = trend
@@ -416,11 +455,17 @@ class AIReasoningEngine:
             return date(year, month, 31)
         return (date(year, month, 28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
 
+    @staticmethod
+    def _unit_for(commodity: str, region: str) -> str:
+        return COMMODITY_REGION_UNITS.get(commodity, {}).get(region, REGION_UNIT.get(region, "unit"))
+
+    def _to_regional_price(self, usd_per_troy_oz: float, region: str, fx: dict[str, float]) -> float:
+        return convert_price(troy_oz_to_grams(usd_per_troy_oz), region, fx)
+
     async def _get_live_price(self, commodity: str, region: str) -> dict[str, Any]:
         if commodity in MODEL_COMMODITIES:
-            rows = await self.commodity_service.live_prices(region=region)
-            row = next((item for item in rows if item.commodity == commodity), None)
-            if row:
+            row = await self._modeled_live_price_response(commodity, region)
+            if row is not None:
                 return {
                     "price": float(row.live_price),
                     "currency": row.currency,
@@ -437,7 +482,7 @@ class AIReasoningEngine:
 
     async def _get_historical(self, commodity: str, region: str, period: str = "6m") -> list[float]:
         if commodity in MODEL_COMMODITIES:
-            history = await self.commodity_service.historical(commodity, region=region, period=period)
+            history = self._modeled_historical_response(commodity, region, period)
             return [point.close for point in history.data if point.close is not None]
         symbol = ALERT_COMMODITY_SYMBOLS[commodity]
         frame = yf.download(symbol, period=period, auto_adjust=False, progress=False)
@@ -503,7 +548,7 @@ class AIReasoningEngine:
     ) -> tuple[dict[str, Any], dict[str, Any] | None]:
         if commodity in MODEL_COMMODITIES:
             model_horizon = min(90, max(1, horizon_days))
-            pred = await self.commodity_service.predict(
+            pred = await self._modeled_prediction_response(
                 session=session,
                 commodity=commodity,
                 region=region,
@@ -548,10 +593,10 @@ class AIReasoningEngine:
         return prediction, None
 
     async def _regional_signal(self, region: str) -> str:
-        rows = await self.commodity_service.live_prices(region=region)
+        rows = await self._modeled_live_price_rows(region)
         historical_map: dict[str, Any] = {}
         for commodity in MODEL_COMMODITIES:
-            historical = await self.commodity_service.historical(commodity, region=region, period="1m")
+            historical = self._modeled_historical_response(commodity, region, period="1m")
             historical_map[commodity] = historical
         ranked = self.intelligence.rank_trending(rows, historical_map)
         if not ranked:
@@ -597,6 +642,49 @@ class AIReasoningEngine:
             "rationale": rationale,
             "risk_note": risk_note,
         }
+
+    async def _modeled_live_price_rows(self, region: str) -> list[Any]:
+        fx = get_fx_rates()
+        quotes = await self.ingestion_service.fetch_live_quotes(list(MODEL_COMMODITIES))
+        out = []
+        for commodity in MODEL_COMMODITIES:
+            quote = quotes.get(commodity)
+            if quote is None:
+                continue
+            out.append(self.normalization_service.to_live_price_response(quote=quote, region=region, fx_rates=fx))
+        return out
+
+    async def _modeled_live_price_response(self, commodity: str, region: str):
+        rows = await self._modeled_live_price_rows(region)
+        return next((item for item in rows if item.commodity == commodity), None)
+
+    def _modeled_historical_response(self, commodity: str, region: str, period: str):
+        fx = get_fx_rates()
+        series = self.ingestion_service.load_historical_series(commodity=commodity, region=region, period=period)
+        return self.normalization_service.to_historical_response(series=series, fx_rates=fx)
+
+    async def _modeled_prediction_response(
+        self,
+        session: AsyncSession,
+        commodity: str,
+        region: str,
+        horizon: int,
+    ):
+        fx = get_fx_rates()
+        series = self.ingestion_service.load_historical_series(commodity=commodity, region=region)
+        return await self.forecast_service.generate_prediction(
+            session=session,
+            commodity=commodity,
+            region=region,
+            horizon=horizon,
+            series=series,
+            feature_store_service=self.feature_store_service,
+            fx_rates=fx,
+            unit=self._unit_for(commodity, region),
+            currency=REGION_CURRENCY[region],
+            to_regional_price=self._to_regional_price,
+            latest_metrics_loader=self.model_registry_service.latest_metrics,
+        )
 
     def _drivers(self, commodity: str, direction: str, volatility_label: str) -> list[str]:
         common = [

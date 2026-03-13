@@ -55,6 +55,100 @@ export interface PredictionResponse {
   model_used: string;
 }
 
+export interface DataProvenance {
+  data_type: 'live_price' | 'historical' | 'forecast' | 'news' | 'features' | 'signal';
+  provider: string;
+  detail?: string | null;
+  observed_at?: string | null;
+}
+
+export interface EngineeredFeatureSnapshot {
+  returns_1d: number;
+  returns_5d: number;
+  returns_20d: number;
+  realized_volatility_20d: number;
+  momentum_20d: number;
+  price_vs_ma20_pct: number;
+  drawdown_20d_pct: number;
+  fx_rate?: number | null;
+  fx_volatility?: number | null;
+  inflation_proxy?: number | null;
+  rate_proxy?: number | null;
+  calendar_month: number;
+}
+
+export interface MarketSignalSummary {
+  label: 'bullish' | 'bearish' | 'neutral' | 'cautious';
+  score: number;
+  confidence: number;
+  scenario: 'bull' | 'base' | 'bear';
+  rationale: string;
+  thresholds_applied: string[];
+}
+
+export interface MarketIntelligence {
+  commodity: Commodity;
+  region: Region;
+  currency: string;
+  unit: string;
+  horizon_days: number;
+  as_of: string;
+  live_price: number;
+  forecast_point: number;
+  forecast_range: [number, number];
+  scenario_forecasts: Record<'bull' | 'base' | 'bear', number>;
+  signal: MarketSignalSummary;
+  features: EngineeredFeatureSnapshot;
+  news_sentiment?: 'bullish' | 'bearish' | 'neutral' | null;
+  news_summary?: string | null;
+  provenance: DataProvenance[];
+}
+
+export interface NormalizedLiveQuote {
+  commodity: Commodity;
+  price_usd_per_troy_oz: number;
+  observed_at: string;
+  provenance: DataProvenance;
+}
+
+export interface NormalizedHistoricalBar {
+  date: string;
+  open_usd_per_troy_oz: number;
+  high_usd_per_troy_oz: number;
+  low_usd_per_troy_oz: number;
+  close_usd_per_troy_oz: number;
+  volume?: number | null;
+}
+
+export interface NormalizedHistoricalSeries {
+  commodity: Commodity;
+  region: Region;
+  rows: number;
+  provenance: DataProvenance;
+  data: NormalizedHistoricalBar[];
+}
+
+export interface FeatureSnapshot {
+  commodity: Commodity;
+  region: Region;
+  period: string;
+  features: EngineeredFeatureSnapshot;
+  provenance: DataProvenance[];
+}
+
+export interface MarketSignal {
+  commodity: Commodity;
+  region: Region;
+  horizon_days: number;
+  live_price: number;
+  forecast_point: number;
+  forecast_range: [number, number];
+  scenario_forecasts: Record<'bull' | 'base' | 'bear', number>;
+  signal: MarketSignalSummary;
+  features: EngineeredFeatureSnapshot;
+  provenance: DataProvenance[];
+}
+
 export interface TrainResponse {
   commodity: Commodity;
   region: Region;

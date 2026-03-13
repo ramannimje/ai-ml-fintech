@@ -6,7 +6,7 @@ from pathlib import Path
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from app.db.schema_guard import ensure_training_runs_schema
+from app.db.schema_guard import ensure_ingestion_schema, ensure_training_runs_schema
 
 
 def test_schema_guard_adds_region_and_unique_index(tmp_path: Path) -> None:
@@ -82,5 +82,78 @@ def test_schema_guard_skips_unique_when_duplicates_exist(tmp_path: Path) -> None
             indexes = (await conn.execute(text("PRAGMA index_list(training_runs)"))).all()
             idx_names = {str(i[1]) for i in indexes}
             assert "uq_training_runs_model_version" not in idx_names
+
+    asyncio.run(_run())
+
+
+def test_schema_guard_adds_ingestion_indexes(tmp_path: Path) -> None:
+    db_path = tmp_path / "schema_guard_ingestion.db"
+    engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}")
+
+    async def _run() -> None:
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE ingestion_jobs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        commodity VARCHAR(32),
+                        region VARCHAR(16),
+                        job_type VARCHAR(32) NOT NULL,
+                        status VARCHAR(16) NOT NULL,
+                        created_at DATETIME NOT NULL
+                    )
+                    """
+                )
+            )
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE normalized_market_records (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        record_type VARCHAR(16) NOT NULL,
+                        commodity VARCHAR(32) NOT NULL,
+                        region VARCHAR(16) NOT NULL,
+                        period VARCHAR(16),
+                        observed_at DATETIME NOT NULL
+                    )
+                    """
+                )
+            )
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE macro_metric_records (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        metric_key VARCHAR(64) NOT NULL,
+                        observed_at DATETIME NOT NULL,
+                        value FLOAT NOT NULL
+                    )
+                    """
+                )
+            )
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE news_headline_records (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        commodity VARCHAR(32) NOT NULL,
+                        published_at DATETIME NOT NULL,
+                        dedupe_key VARCHAR(64) NOT NULL
+                    )
+                    """
+                )
+            )
+            await ensure_ingestion_schema(conn)
+            ingestion_indexes = (await conn.execute(text("PRAGMA index_list(ingestion_jobs)"))).all()
+            normalized_indexes = (await conn.execute(text("PRAGMA index_list(normalized_market_records)"))).all()
+            macro_indexes = (await conn.execute(text("PRAGMA index_list(macro_metric_records)"))).all()
+            news_indexes = (await conn.execute(text("PRAGMA index_list(news_headline_records)"))).all()
+            assert "idx_ingestion_jobs_status" in {str(i[1]) for i in ingestion_indexes}
+            assert "idx_ingestion_jobs_lookup" in {str(i[1]) for i in ingestion_indexes}
+            assert "idx_normalized_market_records_lookup" in {str(i[1]) for i in normalized_indexes}
+            assert "idx_macro_metric_records_dedupe" in {str(i[1]) for i in macro_indexes}
+            assert "idx_news_headline_records_dedupe" in {str(i[1]) for i in news_indexes}
+            assert "idx_news_headline_records_lookup" in {str(i[1]) for i in news_indexes}
 
     asyncio.run(_run())

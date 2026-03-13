@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from app.services import commodity_service as commodity_service_module
+from app.services import model_registry_service as model_registry_service_module
 from app.services.commodity_service import CommodityService
 from app.schemas.responses import TrainResponse
 from ml.training import models as training_models
@@ -82,7 +83,7 @@ def test_predict_uses_chronos_series_path(monkeypatch) -> None:
 
     monkeypatch.setattr(service, "latest_metrics", _latest_metrics)
     monkeypatch.setattr(
-        commodity_service_module,
+        model_registry_service_module,
         "load_model",
         lambda _path: (_ChronosModel(), {"model_name": "chronos_bolt", "horizon": 30}),
     )
@@ -90,7 +91,7 @@ def test_predict_uses_chronos_series_path(monkeypatch) -> None:
     monkeypatch.setattr(
         service.fetcher,
         "get_historical",
-        lambda commodity, region: pd.DataFrame(
+        lambda commodity, period="1y", region="us": pd.DataFrame(
             {
                 "Date": pd.date_range("2025-01-01", periods=120, freq="D"),
                 "Open": np.linspace(1950.0, 2050.0, 120),
@@ -156,7 +157,7 @@ def test_predict_does_not_retrain_when_horizon_mismatch(monkeypatch) -> None:
     monkeypatch.setattr(service, "latest_metrics", _latest_metrics)
     monkeypatch.setattr(service, "train", _train)
     monkeypatch.setattr(
-        commodity_service_module,
+        model_registry_service_module,
         "load_model",
         lambda path: (_Model(), {"model_name": "xgboost", "horizon": 7 if "h7" in str(path) else 30}),
     )
@@ -164,7 +165,7 @@ def test_predict_does_not_retrain_when_horizon_mismatch(monkeypatch) -> None:
     monkeypatch.setattr(
         service.fetcher,
         "get_historical",
-        lambda commodity, region: pd.DataFrame(
+        lambda commodity, period="1y", region="us": pd.DataFrame(
             {
                 "Date": pd.date_range("2025-01-01", periods=220, freq="D"),
                 "Open": np.linspace(1900.0, 2100.0, 220),

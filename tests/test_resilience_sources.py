@@ -7,6 +7,7 @@ import httpx
 
 from app.services.ai_chat_service import AIChatService
 from app.services.commodity_service import CommodityService
+from app.services.vector_service import vector_service
 
 
 class _FailingAsyncClient:
@@ -104,6 +105,11 @@ def test_openrouter_advisory_returns_engine_fallback_on_failure(monkeypatch) -> 
         return ""
 
     monkeypatch.setattr(service, "_openrouter_generate_content", _fake_openrouter_generate_content)
+    async def _fake_search(_session, _question, top_k=3):
+        _ = top_k
+        return []
+
+    monkeypatch.setattr(vector_service, "search_knowledge_base", _fake_search)
     service._openrouter_last_error = "timeout"
 
     out = asyncio.run(

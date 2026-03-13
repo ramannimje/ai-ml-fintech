@@ -136,6 +136,86 @@ async def ensure_training_runs_schema(conn: AsyncConnection) -> None:
             logger.info("schema_repair: created unique index uq_training_runs_model_version")
 
 
+async def ensure_ingestion_schema(conn: AsyncConnection) -> None:
+    """
+    Validate ingestion persistence tables for SQLite files.
+    Fixes:
+    - ensure replay-safe lookup indexes exist on normalized market records
+    - ensure job status index exists for ingestion jobs
+    """
+    dialect = conn.engine.dialect.name
+    if dialect != "sqlite":
+        return
+
+    normalized_exists = (
+        await conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='normalized_market_records'")
+        )
+    ).first()
+    if normalized_exists:
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_normalized_market_records_lookup "
+                "ON normalized_market_records(record_type, commodity, region, period, observed_at)"
+            )
+        )
+
+    jobs_exists = (
+        await conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='ingestion_jobs'")
+        )
+    ).first()
+    if jobs_exists:
+        job_columns = await _sqlite_columns(conn, "ingestion_jobs")
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_ingestion_jobs_status ON ingestion_jobs(status, created_at)")
+        )
+        if {"job_type", "commodity", "region", "created_at"}.issubset(job_columns):
+            await conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_ingestion_jobs_lookup "
+                    "ON ingestion_jobs(job_type, commodity, region, created_at)"
+                )
+            )
+
+    macro_exists = (
+        await conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='macro_metric_records'")
+        )
+    ).first()
+    if macro_exists:
+        macro_columns = await _sqlite_columns(conn, "macro_metric_records")
+        if {"metric_key", "observed_at"}.issubset(macro_columns):
+            await conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_macro_metric_records_dedupe "
+                    "ON macro_metric_records(metric_key, observed_at)"
+                )
+            )
+
+    news_exists = (
+        await conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='news_headline_records'")
+        )
+    ).first()
+    if news_exists:
+        news_columns = await _sqlite_columns(conn, "news_headline_records")
+        if {"dedupe_key"}.issubset(news_columns):
+            await conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_news_headline_records_dedupe "
+                    "ON news_headline_records(dedupe_key)"
+                )
+            )
+        if {"commodity", "published_at"}.issubset(news_columns):
+            await conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_news_headline_records_lookup "
+                    "ON news_headline_records(commodity, published_at)"
+                )
+            )
+
+
 async def ensure_alerts_schema(conn: AsyncConnection) -> None:
     """
     Validate and repair alert tables for older SQLite files.

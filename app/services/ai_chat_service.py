@@ -251,6 +251,8 @@ class AIChatService:
         commodity = str(query_context.get("commodity", "commodity")).replace("_", " ").title()
         current = data_context.get("current_price") or {}
         trend = data_context.get("historical_trend") or {}
+        signal_bundle = data_context.get("signal_bundle") or {}
+        features = (signal_bundle.get("features") or {}) if isinstance(signal_bundle, dict) else {}
         signal = str(trend.get("signal_text", "neutral"))
         momentum = data_context.get("regional_market_signal", "unavailable")
         price = current.get("price", "N/A")
@@ -258,6 +260,8 @@ class AIChatService:
         unit = current.get("unit", "")
         volatility = trend.get("volatility_pct", data_context.get("volatility", "N/A"))
         change = trend.get("change_pct", "N/A")
+        structured_signal_label = signal_bundle.get("signal", {}).get("label", "unavailable") if isinstance(signal_bundle, dict) else "unavailable"
+        structured_confidence = signal_bundle.get("signal", {}).get("confidence", "N/A") if isinstance(signal_bundle, dict) else "N/A"
 
         market_context = (
             f"Commodity: {commodity}\n"
@@ -266,6 +270,11 @@ class AIChatService:
             f"Volatility: {volatility}%\n"
             f"Market Signal: {signal}\n"
             f"Regional Momentum Leader: {momentum}\n"
+            f"Structured Signal Label: {structured_signal_label}\n"
+            f"Structured Signal Confidence: {structured_confidence}\n"
+            f"20D Momentum: {features.get('momentum_20d', 'N/A')}\n"
+            f"20D Realized Volatility: {features.get('realized_volatility_20d', 'N/A')}\n"
+            f"Price vs MA20: {features.get('price_vs_ma20_pct', 'N/A')}\n"
         )
         market_drivers = (
             "Market Drivers:\n"

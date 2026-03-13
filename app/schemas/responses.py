@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field
 from pydantic import field_validator
 
@@ -95,6 +95,116 @@ class RegionalPredictionResponse(BaseModel):
     scenario: Literal["bull", "base", "bear"]
     scenario_forecasts: dict[str, float]
     model_used: str
+
+
+class DataProvenance(BaseModel):
+    data_type: Literal["live_price", "historical", "forecast", "news", "features", "signal"]
+    provider: str
+    detail: Optional[str] = None
+    observed_at: Optional[datetime] = None
+
+
+class EngineeredFeatureSnapshot(BaseModel):
+    returns_1d: float
+    returns_5d: float
+    returns_20d: float
+    realized_volatility_20d: float
+    momentum_20d: float
+    price_vs_ma20_pct: float
+    drawdown_20d_pct: float
+    fx_rate: Optional[float] = None
+    fx_volatility: Optional[float] = None
+    inflation_proxy: Optional[float] = None
+    rate_proxy: Optional[float] = None
+    calendar_month: int
+
+
+class MarketSignalSummary(BaseModel):
+    label: Literal["bullish", "bearish", "neutral", "cautious"]
+    score: float
+    confidence: float = Field(ge=0, le=1)
+    scenario: Literal["bull", "base", "bear"]
+    rationale: str
+    thresholds_applied: list[str] = Field(default_factory=list)
+
+
+class MarketIntelligenceResponse(BaseModel):
+    commodity: str
+    region: str
+    currency: str
+    unit: str
+    horizon_days: int = Field(ge=1, le=90)
+    as_of: datetime
+    live_price: float
+    forecast_point: float
+    forecast_range: tuple[float, float]
+    scenario_forecasts: dict[str, float]
+    signal: MarketSignalSummary
+    features: EngineeredFeatureSnapshot
+    news_sentiment: Optional[Literal["bullish", "bearish", "neutral"]] = None
+    news_summary: Optional[str] = None
+    provenance: list[DataProvenance] = Field(default_factory=list)
+
+
+class NormalizedLiveQuoteResponse(BaseModel):
+    commodity: str
+    price_usd_per_troy_oz: float
+    observed_at: datetime
+    provenance: DataProvenance
+
+
+class NormalizedHistoricalBarResponse(BaseModel):
+    date: date
+    open_usd_per_troy_oz: float
+    high_usd_per_troy_oz: float
+    low_usd_per_troy_oz: float
+    close_usd_per_troy_oz: float
+    volume: Optional[float] = None
+
+
+class NormalizedHistoricalSeriesResponse(BaseModel):
+    commodity: str
+    region: str
+    rows: int
+    provenance: DataProvenance
+    data: list[NormalizedHistoricalBarResponse]
+
+
+class FeatureSnapshotResponse(BaseModel):
+    commodity: str
+    region: str
+    period: str
+    features: EngineeredFeatureSnapshot
+    provenance: list[DataProvenance] = Field(default_factory=list)
+
+
+class MarketSignalResponse(BaseModel):
+    commodity: str
+    region: str
+    horizon_days: int = Field(ge=1, le=90)
+    live_price: float
+    forecast_point: float
+    forecast_range: tuple[float, float]
+    scenario_forecasts: dict[str, float]
+    signal: MarketSignalSummary
+    features: EngineeredFeatureSnapshot
+    provenance: list[DataProvenance] = Field(default_factory=list)
+
+
+class IngestionJobResponse(BaseModel):
+    job_id: int
+    job_type: str
+    status: str
+    message: str
+    commodity: Optional[str] = None
+    region: Optional[str] = None
+    period: Optional[str] = None
+    result: Optional[dict[str, Any]] = None
+    error: Optional[dict[str, Any]] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
 
 
 class RetrainAllResponse(BaseModel):

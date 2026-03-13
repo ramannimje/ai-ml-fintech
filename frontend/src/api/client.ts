@@ -12,8 +12,13 @@ import type {
   CommodityNewsSummary,
   Commodity,
   CommodityDefinition,
+  FeatureSnapshot,
   HistoricalResponse,
   LivePrice,
+  MarketIntelligence,
+  MarketSignal,
+  NormalizedHistoricalSeries,
+  NormalizedLiveQuote,
   PriceAlert,
   PredictionResponse,
   Region,
@@ -104,6 +109,108 @@ export const predictionSchema = z.object({
 const trainSchema = z.object({
   message: z.string(),
   status: z.enum(['processing']),
+});
+
+const dataProvenanceSchema = z.object({
+  data_type: z.enum(['live_price', 'historical', 'forecast', 'news', 'features', 'signal']),
+  provider: z.string(),
+  detail: z.string().nullable().optional(),
+  observed_at: z.string().nullable().optional(),
+});
+
+const engineeredFeatureSnapshotSchema = z.object({
+  returns_1d: z.number(),
+  returns_5d: z.number(),
+  returns_20d: z.number(),
+  realized_volatility_20d: z.number(),
+  momentum_20d: z.number(),
+  price_vs_ma20_pct: z.number(),
+  drawdown_20d_pct: z.number(),
+  fx_rate: z.number().nullable().optional(),
+  fx_volatility: z.number().nullable().optional(),
+  inflation_proxy: z.number().nullable().optional(),
+  rate_proxy: z.number().nullable().optional(),
+  calendar_month: z.number().int(),
+});
+
+const marketSignalSummarySchema = z.object({
+  label: z.enum(['bullish', 'bearish', 'neutral', 'cautious']),
+  score: z.number(),
+  confidence: z.number(),
+  scenario: z.enum(['bull', 'base', 'bear']),
+  rationale: z.string(),
+  thresholds_applied: z.array(z.string()),
+});
+
+const marketIntelligenceSchema = z.object({
+  commodity: z.enum(['gold', 'silver', 'crude_oil']),
+  region: z.enum(['india', 'us', 'europe']),
+  currency: z.string(),
+  unit: z.string(),
+  horizon_days: z.number().int().min(1).max(90),
+  as_of: z.string(),
+  live_price: z.number(),
+  forecast_point: z.number(),
+  forecast_range: z.tuple([z.number(), z.number()]),
+  scenario_forecasts: z.object({
+    bull: z.number(),
+    base: z.number(),
+    bear: z.number(),
+  }),
+  signal: marketSignalSummarySchema,
+  features: engineeredFeatureSnapshotSchema,
+  news_sentiment: z.enum(['bullish', 'bearish', 'neutral']).nullable().optional(),
+  news_summary: z.string().nullable().optional(),
+  provenance: z.array(dataProvenanceSchema),
+});
+
+const normalizedLiveQuoteSchema = z.object({
+  commodity: z.enum(['gold', 'silver', 'crude_oil']),
+  price_usd_per_troy_oz: z.number(),
+  observed_at: z.string(),
+  provenance: dataProvenanceSchema,
+});
+
+const normalizedHistoricalBarSchema = z.object({
+  date: z.string(),
+  open_usd_per_troy_oz: z.number(),
+  high_usd_per_troy_oz: z.number(),
+  low_usd_per_troy_oz: z.number(),
+  close_usd_per_troy_oz: z.number(),
+  volume: z.number().nullable().optional(),
+});
+
+const normalizedHistoricalSeriesSchema = z.object({
+  commodity: z.enum(['gold', 'silver', 'crude_oil']),
+  region: z.enum(['india', 'us', 'europe']),
+  rows: z.number(),
+  provenance: dataProvenanceSchema,
+  data: z.array(normalizedHistoricalBarSchema),
+});
+
+const featureSnapshotSchema = z.object({
+  commodity: z.enum(['gold', 'silver', 'crude_oil']),
+  region: z.enum(['india', 'us', 'europe']),
+  period: z.string(),
+  features: engineeredFeatureSnapshotSchema,
+  provenance: z.array(dataProvenanceSchema),
+});
+
+const marketSignalSchema = z.object({
+  commodity: z.enum(['gold', 'silver', 'crude_oil']),
+  region: z.enum(['india', 'us', 'europe']),
+  horizon_days: z.number().int().min(1).max(90),
+  live_price: z.number(),
+  forecast_point: z.number(),
+  forecast_range: z.tuple([z.number(), z.number()]),
+  scenario_forecasts: z.object({
+    bull: z.number(),
+    base: z.number(),
+    bear: z.number(),
+  }),
+  signal: marketSignalSummarySchema,
+  features: engineeredFeatureSnapshotSchema,
+  provenance: z.array(dataProvenanceSchema),
 });
 
 const trainStatusSchema = z.object({
@@ -270,6 +377,18 @@ export const client = {
     trainSchema.parse((await api.post(`/train/${commodity}/${region}?horizon=${horizon}`)).data),
   trainStatus: async (commodity: Commodity, region: Region) =>
     trainStatusSchema.parse((await api.get(`/train/${commodity}/${region}/status`)).data),
+  marketIntelligence: async (commodity: Commodity, region: Region, horizon: number) =>
+    marketIntelligenceSchema.parse((await api.get(`/intelligence/${commodity}/${region}?horizon=${horizon}`)).data) as MarketIntelligence,
+  normalizedLiveQuote: async (commodity: Commodity, region: Region) =>
+    normalizedLiveQuoteSchema.parse((await api.get(`/normalized/live/${commodity}/${region}`)).data) as NormalizedLiveQuote,
+  normalizedHistorical: async (commodity: Commodity, region: Region, range: '1m' | '6m' | '1y' | '5y' | 'max') =>
+    normalizedHistoricalSeriesSchema.parse((await api.get(`/normalized/historical/${commodity}/${region}?range=${range}`)).data) as NormalizedHistoricalSeries,
+  featureSnapshot: async (commodity: Commodity, region: Region, range: '1m' | '6m' | '1y' | '5y' | 'max') =>
+    featureSnapshotSchema.parse((await api.get(`/features/${commodity}/${region}?range=${range}`)).data) as FeatureSnapshot,
+  signalSnapshot: async (commodity: Commodity, region: Region, horizon: number) =>
+    marketSignalSchema.parse((await api.get(`/signals/${commodity}/${region}?horizon=${horizon}`)).data) as MarketSignal,
+  forecastSnapshot: async (commodity: Commodity, region: Region, horizon: number) =>
+    predictionSchema.parse((await api.get(`/forecasts/${commodity}/${region}?horizon=${horizon}`)).data) as PredictionResponse,
   predict: async (commodity: Commodity, region: Region, horizon: number) =>
     predictionSchema.parse((await api.get(`/predict/${commodity}/${region}?horizon=${horizon}`)).data) as PredictionResponse,
   createAlert: async (input: {

@@ -258,12 +258,21 @@ class MarketDataFetcher:
                     raw = yf.download(symbol, period=period, auto_adjust=False, progress=False).reset_index()
                 else:
                     last_dt = cached["Date"].max().to_pydatetime().replace(tzinfo=timezone.utc)
-                    start = (last_dt + timedelta(days=1)).date().isoformat()
-                    raw = yf.download(symbol, start=start, auto_adjust=False, progress=False).reset_index()
-                    if not raw.empty:
-                        raw = pd.concat([cached, raw], ignore_index=True)
-                    else:
+                    start_date = (last_dt + timedelta(days=1)).date()
+                    today_utc = datetime.now(timezone.utc).date()
+                    if start_date > today_utc:
                         raw = cached.copy()
+                    else:
+                        raw = yf.download(
+                            symbol,
+                            start=start_date.isoformat(),
+                            auto_adjust=False,
+                            progress=False,
+                        ).reset_index()
+                        if not raw.empty:
+                            raw = pd.concat([cached, raw], ignore_index=True)
+                        else:
+                            raw = cached.copy()
 
                 if not raw.empty:
                     if isinstance(raw.columns, pd.MultiIndex):

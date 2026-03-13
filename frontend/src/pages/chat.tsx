@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { client } from '../api/client';
 import { useAIChatStore, buildChatContextKey } from '../store/chat-store';
 import type { Commodity, Region } from '../types/api';
-import { AssistantFilters, type WatchlistItem } from '../components/ai-assistant/AssistantFilters';
 import { AssistantHeader } from '../components/ai-assistant/AssistantHeader';
 import { AssistantTimeline } from '../components/ai-assistant/AssistantTimeline';
 import { AssistantComposer } from '../components/ai-assistant/AssistantComposer';
-import { AssistantInsightsRail, riskLabelFromPrediction } from '../components/ai-assistant/AssistantInsightsRail';
-import { commodities } from '../components/ai-assistant/constants';
+import { riskLabelFromPrediction } from '../components/ai-assistant/AssistantInsightsRail';
 import { formatPrice } from '../components/ai-assistant/format';
 import type { AIChatMessage } from '../store/chat-store';
 
 const EMPTY_MESSAGES: AIChatMessage[] = [];
+const COMMODITIES: Commodity[] = ['gold', 'silver', 'crude_oil'];
+const HORIZONS = [1, 7, 30] as const;
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -49,13 +49,11 @@ export function AIChatPage() {
     refetchInterval: 30_000,
   });
 
-  const historicalQueries = useQueries({
-    queries: commodities.map((item) => ({
-      queryKey: ['assistant-historical', item, region],
-      queryFn: () => client.historical(item, region, '1m'),
-      staleTime: 45_000,
-      refetchInterval: 60_000,
-    })),
+  const historicalQuery = useQuery({
+    queryKey: ['assistant-historical', commodity, region],
+    queryFn: () => client.historical(commodity, region, '1m'),
+    staleTime: 45_000,
+    refetchInterval: 60_000,
   });
 
   const predictionQuery = useQuery({
@@ -71,38 +69,15 @@ export function AIChatPage() {
     refetchInterval: 20_000,
   });
 
-  const historicalByCommodity = useMemo(() => {
-    const out: Partial<Record<Commodity, number[]>> = {};
-    commodities.forEach((item, index) => {
-      out[item] = (historicalQueries[index]?.data?.data ?? []).map((point) => point.close);
-    });
-    return out;
-  }, [historicalQueries]);
-
-  const watchlist: WatchlistItem[] = useMemo(() => {
-    const live = liveQuery.data ?? [];
-    return commodities.map((item) => {
-      const liveItem = live.find((entry) => entry.commodity === item);
-      const closes = historicalByCommodity[item] ?? [];
-      const latest = closes[closes.length - 1] ?? liveItem?.live_price ?? 0;
-      const previous = closes[closes.length - 2] ?? latest;
-      const deltaPct = previous ? ((latest - previous) / previous) * 100 : 0;
-      return {
-        commodity: item,
-        currency: liveItem?.currency ?? 'USD',
-        livePrice: liveItem?.live_price ?? 0,
-        deltaPct,
-        sparkline: closes.slice(-16),
-      };
-    });
-  }, [historicalByCommodity, liveQuery.data]);
-
   const activeLive = useMemo(
     () => (liveQuery.data ?? []).find((entry) => entry.commodity === commodity),
     [commodity, liveQuery.data],
   );
 
-  const selectedCloses = historicalByCommodity[commodity] ?? [];
+  const selectedCloses = useMemo(
+    () => (historicalQuery.data?.data ?? []).map((point) => point.close),
+    [historicalQuery.data],
+  );
   const selectedDeltaPct = useMemo(() => {
     const latest = selectedCloses[selectedCloses.length - 1] ?? activeLive?.live_price ?? 0;
     const previous = selectedCloses[selectedCloses.length - 2] ?? latest;
@@ -210,47 +185,63 @@ export function AIChatPage() {
         </div>
       ) : null}
 
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
-        <AssistantFilters
+      <section className="assistant-panel p-4 md:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">Context</p>
+            <div className="flex flex-wrap gap-2">
+              <select value={region} onChange={(event) => setRegion(event.target.value as Region)} className="ui-input min-w-[8rem]">
+                <option value="us">US</option>
+                <option value="india">India</option>
+                <option value="europe">Europe</option>
+              </select>
+              <select value={commodity} onChange={(event) => setCommodity(event.target.value as Commodity)} className="ui-input min-w-[10rem]">
+                {COMMODITIES.map((item) => (
+                  <option key={item} value={item}>
+                    {item.replace('_', ' ')}
+                  </option>
+                ))}
+              </select>
+              <div className="flex flex-wrap gap-2">
+                {HORIZONS.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={horizon === value ? 'btn-primary' : 'btn-ghost'}
+                    onClick={() => setHorizon(value)}
+                  >
+                    {value}D
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 text-sm text-muted">
+            {activeLive ? <span className="assistant-badge">Live {formatPrice(activeLive.live_price, activeLive.currency)}</span> : null}
+            {predictionQuery.data ? <span className="assistant-badge">Risk {riskLabel}</span> : null}
+          </div>
+        </div>
+      </section>
+
+      <div className="space-y-4">
+        <AssistantTimeline
+          messages={messages}
+          isStreaming={isSending}
+          loading={false}
           region={region}
           commodity={commodity}
-          horizon={horizon}
-          onRegion={setRegion}
-          onCommodity={setCommodity}
-          onHorizon={setHorizon}
-          watchlist={watchlist}
-          loading={liveQuery.isLoading || historicalQueries.some((query) => query.isLoading)}
-          error={liveQuery.isError ? errorMessage(liveQuery.error, 'Unable to load live watchlist.') : null}
+          livePrice={activeLive ? formatPrice(activeLive.live_price, activeLive.currency) : undefined}
+          riskLabel={riskLabel}
         />
 
-        <div className="space-y-4">
-          <AssistantTimeline
-            messages={messages}
-            isStreaming={isSending}
-            loading={false}
-            region={region}
-            commodity={commodity}
-            livePrice={activeLive ? formatPrice(activeLive.live_price, activeLive.currency) : undefined}
-            riskLabel={riskLabel}
-          />
+        {sendError ? (
+          <div className="rounded-xl border px-3 py-2 text-sm" style={{ borderColor: 'color-mix(in srgb, var(--danger) 35%, var(--border))', color: 'var(--danger)' }}>
+            {sendError}
+          </div>
+        ) : null}
 
-          {sendError ? (
-            <div className="rounded-xl border px-3 py-2 text-sm" style={{ borderColor: 'color-mix(in srgb, var(--danger) 35%, var(--border))', color: 'var(--danger)' }}>
-              {sendError}
-            </div>
-          ) : null}
-
-          <AssistantComposer disabled={isSending} onSend={onSend} />
-        </div>
-
-        <AssistantInsightsRail
-          activeCommodity={commodity}
-          live={activeLive}
-          prediction={predictionQuery.data}
-          deltaPct={selectedDeltaPct}
-          loading={liveQuery.isLoading || predictionQuery.isLoading}
-        />
-      </section>
+        <AssistantComposer disabled={isSending} onSend={onSend} />
+      </div>
     </div>
   );
 }

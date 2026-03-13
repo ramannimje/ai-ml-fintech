@@ -51,8 +51,12 @@ class CommodityNewsService:
     def _anthropic_api_key() -> str | None:
         return get_secret_value(AI_SECRETS, "ANTHROPIC_API_KEY", env_fallback="ANTHROPIC_API_KEY")
 
-    async def summarize(self, commodity: str) -> CommodityNewsSummaryResponse:
-        headlines = await self._fetch_headlines(commodity)
+    async def summarize(
+        self,
+        commodity: str,
+        headlines: list[NewsHeadline] | None = None,
+    ) -> CommodityNewsSummaryResponse:
+        headlines = headlines or await self._fetch_headlines(commodity)
         summary, sentiment = await self._summarize_with_claude(commodity, headlines)
         if not summary:
             summary = self._fallback_summary(commodity, headlines)

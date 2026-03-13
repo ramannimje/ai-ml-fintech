@@ -35,6 +35,7 @@ describe('buildCommodityChartData', () => {
     expect(out[3].pred).toBeDefined();
     expect(out.at(-1)?.date).toBe('2026-01-10');
     expect(out.at(-1)?.pred).toBeCloseTo(110);
+    expect(out[4]?.pred).not.toBeCloseTo(104 + ((110 - 104) * 2) / 7);
   });
 
   it('changes output length and end date with larger horizon', () => {
@@ -49,5 +50,20 @@ describe('buildCommodityChartData', () => {
     const out = buildCommodityChartData(historical, undefined, 30);
     expect(out).toHaveLength(3);
     expect(out.every((p) => p.pred === undefined)).toBe(true);
+  });
+
+  it('avoids flat future path when endpoint matches latest close', () => {
+    const flatEndpointPrediction: PredictionResponse = {
+      ...prediction,
+      point_forecast: 104,
+      confidence_interval: [100, 108],
+      scenario_forecasts: { bull: 110, base: 104, bear: 98 },
+    };
+
+    const out = buildCommodityChartData(historical, flatEndpointPrediction, 7);
+    const futurePreds = out.slice(3).map((point) => point.pred);
+
+    expect(new Set(futurePreds).size).toBeGreaterThan(1);
+    expect(out.at(-1)?.pred).toBe(104);
   });
 });
