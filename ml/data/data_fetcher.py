@@ -113,6 +113,13 @@ class MarketDataFetcher:
         }
         return mapping.get(period, ("5y", "1d"))
 
+    @staticmethod
+    def _period_for_yfinance(period: str) -> str:
+        """Return period string valid for yfinance (e.g. '1m' -> '1mo')."""
+        if period == "1m":
+            return "1mo"
+        return period
+
     def _fetch_via_http(self, symbol: str, period: str = "5y") -> pd.DataFrame:
         """Fetch historical OHLCV data directly from Yahoo Finance Chart API."""
         yf_range, interval = self._yfinance_period_to_http(period)
@@ -256,14 +263,17 @@ class MarketDataFetcher:
         """
         Fetch macro features: DXY (USD index) and 10Y Treasury yield.
         Returns a DataFrame indexed by Date with columns: dxy, treasury_10y.
+        Uses minimum 5d for yfinance to avoid Yahoo 'start after end' bug with 1d.
         """
+        # DXY/TNX with period=1d can trigger Yahoo "start date cannot be after end date"
+        macro_period = "5d" if period == "1d" else period
         frames: dict[str, pd.Series] = {}
         for key, symbol in MACRO_SYMBOLS.items():
             path = self._macro_cache_path(key)
             try:
                 cached = pd.read_csv(path, parse_dates=["Date"]) if path.exists() else pd.DataFrame()
                 if cached.empty:
-                    raw = yf.download(symbol, period=period, auto_adjust=False, progress=False).reset_index()
+                    raw = yf.download(symbol, period=macro_period, auto_adjust=False, progress=False).reset_index()
                 else:
                     last_dt = cached["Date"].max().to_pydatetime().replace(tzinfo=timezone.utc)
                     start_date = (last_dt + timedelta(days=1)).date()
@@ -271,9 +281,11 @@ class MarketDataFetcher:
                     if start_date > today_utc:
                         raw = cached.copy()
                     else:
+                        end_str = today_utc.isoformat()
                         raw = yf.download(
                             symbol,
                             start=start_date.isoformat(),
+                            end=end_str,
                             auto_adjust=False,
                             progress=False,
                         ).reset_index()
@@ -324,9 +336,10 @@ class MarketDataFetcher:
         cached = pd.read_csv(path, parse_dates=["Date"]) if path.exists() else pd.DataFrame()
 
         refresh_on_request = os.getenv("DATA_REFRESH_ON_REQUEST", "").strip().lower() in {"1", "true", "yes"}
+        yf_period = self._period_for_yfinance(period)
         if cached.empty or refresh_on_request:
             try:
-                fresh = yf.download(symbol, period=period, auto_adjust=False, progress=False, threads=False).reset_index()
+                fresh = yf.download(symbol, period=yf_period, auto_adjust=False, progress=False, threads=False).reset_index()
                 if isinstance(fresh.columns, pd.MultiIndex):
                     fresh.columns = [str(col[0]) for col in fresh.columns]
                 else:

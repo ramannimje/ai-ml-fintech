@@ -220,15 +220,21 @@ const marketSignalSchema = z.object({
   provenance: z.array(dataProvenanceSchema),
 });
 
-const trainStatusSchema = z.object({
-  status: z.enum(['none', 'processing', 'completed', 'failed']),
+export const trainStatusSchema = z.object({
+  status: z.enum(['none', 'queued', 'processing', 'completed', 'failed']),
   message: z.string(),
-  result: z.object({
-    rmse: z.number(),
-    mape: z.number(),
-    best_model: z.string(),
-    model_version: z.string(),
-  }).optional(),
+  result: z
+    .object({
+      rmse: z.number(),
+      mape: z.number(),
+      best_model: z.string(),
+      model_version: z.string(),
+    })
+    .optional(),
+  error: z.record(z.unknown()).optional(),
+  created_at: z.string().optional(),
+  started_at: z.string().optional(),
+  completed_at: z.string().optional(),
 });
 
 const alertCommoditySchema = z.enum(['gold', 'silver', 'crude_oil', 'natural_gas', 'copper']);

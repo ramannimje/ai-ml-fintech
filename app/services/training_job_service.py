@@ -98,9 +98,15 @@ class TrainingJobService:
                 "message": "No recent training run found.",
             }
 
+        def _iso(dt: datetime | None) -> str | None:
+            return dt.isoformat() if dt else None
+
         payload: dict[str, Any] = {
             "status": job.status,
             "message": job.message or "",
+            "created_at": _iso(job.created_at),
+            "started_at": _iso(job.started_at),
+            "completed_at": _iso(job.completed_at),
         }
         if job.result_payload is not None:
             payload["result"] = job.result_payload
