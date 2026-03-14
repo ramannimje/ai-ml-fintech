@@ -65,6 +65,8 @@ export const livePriceSchema = z.object({
   unit: z.string(),
   currency: z.string(),
   live_price: z.number(),
+  daily_change: z.number().default(0),
+  daily_change_pct: z.number().default(0),
   source: z.string(),
   timestamp: z.string(),
 });

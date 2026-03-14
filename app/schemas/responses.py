@@ -38,6 +38,8 @@ class LivePriceResponse(BaseModel):
     unit: str
     currency: str
     live_price: float
+    daily_change: float = 0.0
+    daily_change_pct: float = 0.0
     source: str
     timestamp: datetime
 

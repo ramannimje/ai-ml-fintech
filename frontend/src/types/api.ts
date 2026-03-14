@@ -20,6 +20,8 @@ export interface LivePrice {
   unit: string;
   currency: string;
   live_price: number;
+  daily_change: number;
+  daily_change_pct: number;
   source: string;
   timestamp: string;
 }

@@ -24,6 +24,8 @@ class MarketDataNormalizationService:
             unit=self._unit_for(quote.commodity, region),
             currency=self._region_currency[region],
             live_price=round(self._to_regional_price(quote.price_usd_per_troy_oz, region, fx_rates), 4),
+            daily_change=round(quote.daily_change or 0.0, 4),
+            daily_change_pct=round(quote.daily_change_pct or 0.0, 4),
             source=quote.provenance.detail or quote.provenance.provider,
             timestamp=quote.observed_at,
         )

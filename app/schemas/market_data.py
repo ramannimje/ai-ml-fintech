@@ -19,6 +19,8 @@ class MarketDataProvenanceRecord(BaseModel):
 class NormalizedLiveQuote(BaseModel):
     commodity: str
     price_usd_per_troy_oz: float
+    daily_change: float | None = None
+    daily_change_pct: float | None = None
     observed_at: datetime
     provenance: MarketDataProvenanceRecord
 

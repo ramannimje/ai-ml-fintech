@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { client } from '../api/client';
 import type { JobSpec, JobStatus, TrackedJob, TrainStatusResponse } from '../types/training';
+import type { BatchSummary } from '../types/training';
 import {
   apiStatusToJobStatus,
   computeBatchSummary,

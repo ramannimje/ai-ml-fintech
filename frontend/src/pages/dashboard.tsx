@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { client } from '../api/client';
-import { CommodityChart } from '../components/chart';
+import { ModernChart } from '../components/chart/ModernChart';
+import { TickerTape } from '../components/market/TickerTape';
+import { DetailsCard } from '../components/market/DetailsCard';
+import { SignalBadge, getSignalFromChange, getConfidenceFromMagnitude } from '../components/market/SignalBadge';
 import type { Commodity, HistoricalResponse, PredictionResponse, Region } from '../types/api';
 
-const regions: Region[] = ['india', 'us', 'europe'];
 const commodities: Commodity[] = ['gold', 'silver', 'crude_oil'];
 
 function isFallbackPrediction(prediction: PredictionResponse | undefined): boolean {
@@ -14,28 +17,38 @@ function isFallbackPrediction(prediction: PredictionResponse | undefined): boole
 }
 
 export function DashboardPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const settings = useQuery({
     queryKey: ['user-settings'],
     queryFn: () => client.getUserSettings(),
     staleTime: 120_000,
   });
-  const [region, setRegion] = useState<Region>('us');
-  const [activeCommodity, setActiveCommodity] = useState<Commodity>('gold');
-  const [predictionHorizon, setPredictionHorizon] = useState<number>(30);
+  
+  // Use region from settings only - no local state for region selection
+  const region = settings.data?.default_region ?? 'us';
+  // Use settings default initially, but allow local switching
+  const [activeCommodity, setActiveCommodity] = useState<Commodity>(
+    settings.data?.default_commodity ?? 'gold'
+  );
+  const predictionHorizon = settings.data?.prediction_horizon ?? 30;
+  
+  // Determine currency based on region
+  const currency = region === 'india' ? 'INR' : region === 'europe' ? 'EUR' : 'USD';
+  
+  // Sync with settings when they load
+  useEffect(() => {
+    if (settings.data?.default_commodity) {
+      setActiveCommodity(settings.data.default_commodity);
+    }
+  }, [settings.data?.default_commodity]);
+  
   const updateSettings = useMutation({
     mutationFn: (input: { default_region?: Region; prediction_horizon?: number }) => client.updateUserSettings(input),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['user-settings'] });
     },
   });
-
-  useEffect(() => {
-    if (!settings.data) return;
-    setRegion(settings.data.default_region);
-    setActiveCommodity(settings.data.default_commodity);
-    setPredictionHorizon(settings.data.prediction_horizon);
-  }, [settings.data]);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['live', region],
@@ -113,9 +126,9 @@ export function DashboardPage() {
   );
 
   const chartData = useMemo(() => {
-    const hist = historicalByCommodity[activeCommodity]?.data ?? [];
-    const pred = predictionByCommodity[activeCommodity];
-    return hist.slice(-90).map((d, idx, arr) => ({
+    const hist = historicalByCommodity[activeCommodity as Commodity]?.data ?? [];
+    const pred = predictionByCommodity[activeCommodity as Commodity];
+    return hist.slice(-90).map((d: any, idx: number, arr: any[]) => ({
       date: d.date,
       close: d.close,
       high: d.high ?? d.close,
@@ -127,182 +140,108 @@ export function DashboardPage() {
     }));
   }, [activeCommodity, historicalByCommodity, predictionByCommodity]);
 
-  const activeItem = data?.find((item) => item.commodity === activeCommodity) ?? data?.[0];
-  const activePrediction = activeItem ? predictionByCommodity[activeItem.commodity] : undefined;
-  const activeTrend = trends.find((trend) => trend.commodity === activeCommodity);
-
-  const onRegionChange = async (next: Region) => {
-    setRegion(next);
-    await updateSettings.mutateAsync({ default_region: next }).catch(() => undefined);
-  };
-
   return (
-    <div className="space-y-5 md:space-y-6">
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
-        <div className="panel rounded-[1.5rem] p-5 sm:p-6">
-          <h1 className="shell-title">Market Intelligence Dashboard</h1>
-          <p className="shell-subtitle max-w-xl">Live pricing, scenario overlays, and cross-commodity momentum for {region.toUpperCase()}.</p>
-          <div className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-            <div>
-              <p className="kpi-label">{activeCommodity.replace('_', ' ')} spotlight</p>
-              <p className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl" style={{ color: 'var(--text)' }}>
-                {activeItem ? `${activeItem.live_price.toFixed(2)} ${activeItem.currency}` : '...'}
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
-                <span className="text-muted">
-                  {activePrediction?.forecast_basis_label ?? `Predicted (${predictionHorizon}D)`}: {activePrediction?.point_forecast?.toFixed(2) ?? '...'} {activeItem?.currency ?? ''}
-                </span>
-                {activeTrend && (
-                  <span className={`font-semibold ${activeTrend.bullish ? 'status-up' : 'status-down'}`}>
-                    {activeTrend.windowDays}D momentum: {activeTrend.bullish ? 'Up' : 'Down'} {Math.abs(activeTrend.pct).toFixed(2)}%
-                  </span>
-                )}
-              </div>
-              <p className="mt-2 text-xs text-muted">
-                Spot anchor: {activePrediction?.current_spot_price?.toFixed(2) ?? activeItem?.live_price?.toFixed(2) ?? '...'} {activeItem?.currency ?? ''} | Forecast vs spot: {activePrediction?.forecast_vs_spot_pct?.toFixed(2) ?? '...'}%
-              </p>
-              {isFallbackPrediction(activePrediction) && (
-                <p className="mt-2 text-xs font-semibold" style={{ color: 'var(--danger)' }}>
-                  Warning: Fallback model active
-                </p>
-              )}
-            </div>
-            <div className="panel-soft rounded-2xl px-4 py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted">Confidence band</p>
-              <p className="mt-2 text-base font-semibold" style={{ color: 'var(--text)' }}>
-                {activePrediction?.confidence_interval?.map((x) => x.toFixed(2)).join(' - ') ?? '...'}
-              </p>
-              <p className="mt-1 text-[11px] text-muted">{activePrediction?.confidence_method ?? 'spot_anchored_volatility_90'}</p>
-            </div>
-          </div>
-        </div>
-        <aside className="panel rounded-[1.5rem] p-4 sm:p-5">
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Region</label>
-              <select value={region} onChange={(e) => onRegionChange(e.target.value as Region)} className="ui-input mt-2 w-full">
-                {regions.map((r) => (
-                  <option key={r} value={r}>
-                    {r.toUpperCase()}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Selected market</p>
-              <div className="mt-2 grid grid-cols-3 gap-2">
-                {commodities.map((commodity) => (
+    <div className="space-y-3 md:space-y-4">
+      {/* Inject commodity selector styles */}
+      <style>{commoditySelectorStyles}</style>
+
+      {/* Ticker Tape */}
+      {data && data.length > 0 && (
+        <TickerTape
+          items={data.map((item) => ({
+            commodity: item.commodity,
+            price: item.live_price,
+            change: item.daily_change,
+            changePct: item.daily_change_pct,
+            currency: item.currency,
+            unit: item.unit,
+          }))}
+          speed={25}
+        />
+      )}
+
+      {/* 50/50 Split Layout */}
+      <div className="flex flex-col lg:flex-row gap-4 items-stretch">
+        {/* Left Half - Chart Section */}
+        <div className="flex-1">
+          <section className="panel rounded-[1.5rem] p-0 sm:p-0 overflow-hidden h-full">
+            {/* Commodity Selector Toolbar */}
+            <div className="commodity-selector-toolbar">
+              <span className="selector-label">View Chart:</span>
+              <div className="commodity-toggle-group">
+                {commodities.map((comm) => (
                   <button
-                    key={commodity}
-                    type="button"
-                    onClick={() => setActiveCommodity(commodity)}
-                    className={activeCommodity === commodity ? 'btn-primary w-full' : 'btn-ghost w-full'}
+                    key={comm}
+                    onClick={() => setActiveCommodity(comm)}
+                    className={`commodity-toggle-btn ${activeCommodity === comm ? 'active' : ''}`}
                   >
-                    {commodity.replace('_', ' ')}
+                    {comm === 'gold' && <span className="commodity-icon">🥇</span>}
+                    {comm === 'silver' && <span className="commodity-icon">🥈</span>}
+                    {comm === 'crude_oil' && <span className="commodity-icon">🛢️</span>}
+                    <span>{comm.replace('_', ' ').toUpperCase()}</span>
                   </button>
                 ))}
               </div>
             </div>
-          </div>
-        </aside>
-      </section>
 
-      {isLoading && <div className="panel rounded-2xl p-4 text-sm">Loading live prices...</div>}
-      {isError && (
-        <div className="panel rounded-2xl p-4 text-sm" style={{ color: 'var(--danger)', borderColor: 'color-mix(in srgb, var(--danger) 35%, var(--border))' }}>
-          Failed to load live prices.
+            {/* Modern Chart - Scaled to fit half width */}
+            <ModernChart
+              data={chartData}
+              height={320}
+              showVolume={true}
+              showPredictions={true}
+              currency={currency}
+              commodity={activeCommodity}
+            />
+          </section>
         </div>
-      )}
 
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        {data?.map((item) => (
-          <article
-            key={item.commodity}
-            className={`panel panel-hover-gold p-5 ${activeCommodity === item.commodity ? 'ring-1' : ''}`}
-            style={activeCommodity === item.commodity ? { borderColor: 'color-mix(in srgb, var(--gold) 35%, var(--border))', boxShadow: '0 16px 32px color-mix(in srgb, var(--gold) 10%, transparent)' } : undefined}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="kpi-label">{item.commodity.replace('_', ' ')}</p>
-                <p className="mt-2 text-3xl font-semibold tracking-tight sm:text-[2rem]" style={{ color: 'var(--text)' }}>
-                  {item.live_price.toFixed(2)} {item.currency}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveCommodity(item.commodity)}
-                className={`card-chip shrink-0 ${activeCommodity === item.commodity ? 'card-chip-active' : ''}`}
-                aria-pressed={activeCommodity === item.commodity}
-              >
-                {activeCommodity === item.commodity ? 'Selected' : 'Focus'}
-              </button>
-            </div>
-            <p className="mt-3 text-sm text-muted">
-              {predictionByCommodity[item.commodity]?.forecast_basis_label ?? `Predicted (${predictionHorizon}D)`}: {predictionByCommodity[item.commodity]?.point_forecast?.toFixed(2) ?? '...'} {item.currency}
-            </p>
-            <p className="mt-1 text-xs text-muted">
-              CI: {predictionByCommodity[item.commodity]?.confidence_interval?.map((x) => x.toFixed(2)).join(' - ') ?? '...'}
-            </p>
-            <p className="mt-1 text-xs text-muted">
-              Spot: {predictionByCommodity[item.commodity]?.current_spot_price?.toFixed(2) ?? item.live_price.toFixed(2)} {item.currency} | Delta: {predictionByCommodity[item.commodity]?.forecast_vs_spot_pct?.toFixed(2) ?? '...'}%
-            </p>
-            <p className="mt-3 text-sm font-semibold text-accent">
-              {predictionByCommodity[item.commodity]?.scenario === 'bull'
-                ? 'Bullish Bias'
-                : predictionByCommodity[item.commodity]?.scenario === 'bear'
-                  ? 'Bearish Bias'
-                  : 'Base Scenario'}
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {predictionByCommodity[item.commodity]?.macro_sensitivity_tags?.map((tag) => (
-                <span key={`${item.commodity}-${tag}`} className="card-chip">
-                  {tag}
-                </span>
-              ))}
-              {isFallbackPrediction(predictionByCommodity[item.commodity]) && (
-                <span className="card-chip" style={{ borderColor: 'color-mix(in srgb, var(--danger) 35%, var(--border))', color: 'var(--danger)' }}>
-                  Warning: Fallback Model Active
-                </span>
-              )}
-            </div>
-            <p className="mt-2 text-xs text-muted">
-              Unit: {item.unit} | Last calibrated: {predictionByCommodity[item.commodity]?.last_calibrated_at ? new Date(predictionByCommodity[item.commodity]!.last_calibrated_at!).toLocaleString() : 'model fallback'} | {item.source}
-            </p>
-            <Link to={`/commodity/${item.commodity}?region=${region}`} className="mt-4 inline-flex text-sm font-semibold text-accent hover:underline">
-              Open detailed analysis
-            </Link>
-          </article>
-        ))}
-      </section>
+        {/* Right Half - Details Card Section */}
+        <div className="flex-1">
+          {data?.map((item) => {
+            if (item.commodity !== activeCommodity) return null;
+            const pred = predictionByCommodity[item.commodity];
+            const hist = historicalByCommodity[item.commodity]?.data ?? [];
+            const sparklineData = hist.slice(-30).map((d: any) => ({
+              value: d.close,
+              date: d.date,
+            }));
 
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+            return (
+              <DetailsCard
+                key={item.commodity}
+                commodity={item.commodity}
+                region={region}
+                price={item.live_price}
+                currency={item.currency}
+                unit={item.unit}
+                change={item.daily_change}
+                changePct={item.daily_change_pct}
+                sparklineData={sparklineData}
+                prediction={pred}
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Stats Grid - Full width below split */}
+      <section className="grid grid-cols-2 gap-3 md:gap-4 mt-3 md:mt-4">
         <Stat title="Spread Difference" value={summary.spread.toFixed(2)} highlight />
         <Stat title="FX Impact" value={`${(summary.vol * 0.65).toFixed(2)}%`} />
         <Stat title="Premium vs LBMA" value={`${(summary.vol * 0.35).toFixed(2)}%`} />
         <Stat title="Volatility Meter" value={`${summary.vol.toFixed(2)}%`} />
       </section>
 
-      <section className="panel rounded-[1.5rem] p-4 sm:p-5">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <p className="kpi-label">Price range</p>
-            <p className="mt-1 text-lg font-semibold" style={{ color: 'var(--text)' }}>
-              {activeCommodity.replace('_', ' ')} trend
-            </p>
-          </div>
-          <span className="assistant-badge">{region.toUpperCase()} · 90D</span>
-        </div>
-        <CommodityChart data={chartData} />
-      </section>
-
-      <section className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-4">
+      {/* Trends Section */}
+      <section className="grid grid-cols-1 gap-3 md:gap-4 mt-3 md:mt-4">
         {trends.map((trend) => (
-          <article key={trend.commodity} className="panel p-4 sm:p-5">
+          <article key={trend.commodity} className="panel p-3 md:p-4">
             <p className="kpi-label">{trend.commodity.replace('_', ' ')}</p>
-            <p className={`mt-2 text-[1.9rem] font-semibold tracking-tight ${trend.bullish ? 'status-up' : 'status-down'}`}>
+            <p className={`mt-2 text-lg md:text-[1.9rem] font-semibold tracking-tight ${trend.bullish ? 'status-up' : 'status-down'}`}>
               {trend.bullish ? 'Up' : 'Down'} {Math.abs(trend.pct).toFixed(2)}%
             </p>
-            <p className="text-sm text-muted">{trend.windowDays}D absolute move: {trend.delta.toFixed(2)}</p>
+            <p className="text-xs md:text-sm text-muted">{trend.windowDays}D absolute move: {trend.delta.toFixed(2)}</p>
           </article>
         ))}
       </section>
@@ -320,3 +259,75 @@ function Stat({ title, value, highlight = false }: { title: string; value: strin
     </div>
   );
 }
+
+// Add commodity selector styles
+const commoditySelectorStyles = `
+.commodity-selector-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 50%, var(--surface));
+}
+
+.selector-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.commodity-toggle-group {
+  display: flex;
+  gap: 8px;
+}
+
+.commodity-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 200ms ease;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.commodity-toggle-btn:hover {
+  border-color: var(--gold-soft);
+  transform: translateY(-1px);
+}
+
+.commodity-toggle-btn.active {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #ffffff;
+}
+
+.commodity-icon {
+  font-size: 16px;
+}
+
+@media (max-width: 640px) {
+  .commodity-selector-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .commodity-toggle-group {
+    flex-wrap: wrap;
+  }
+  
+  .commodity-toggle-btn {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+}
+`;

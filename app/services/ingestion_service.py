@@ -93,17 +93,35 @@ class YahooFinanceLiveQuoteProvider:
                 if not symbol:
                     continue
                 try:
+                    # Fetch 5 days to calculate daily change
                     response = await client.get(
-                        f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=1d"
+                        f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=5d"
                     )
                     response.raise_for_status()
                     data = response.json()
-                    price = data.get("chart", {}).get("result", [{}])[0].get("meta", {}).get("regularMarketPrice")
+                    result = data.get("chart", {}).get("result", [{}])[0]
+                    price = result.get("meta", {}).get("regularMarketPrice")
                     if price is None:
                         continue
+                    
+                    # Calculate daily change from previous close
+                    quotes_data = result.get("indicators", {}).get("quote", [{}])[0]
+                    closes = quotes_data.get("close", [])
+                    valid_closes = [c for c in closes if c is not None]
+                    
+                    daily_change = 0.0
+                    daily_change_pct = 0.0
+                    if len(valid_closes) >= 2:
+                        latest_close = valid_closes[-1]
+                        prev_close = valid_closes[-2]
+                        daily_change = latest_close - prev_close
+                        daily_change_pct = ((latest_close - prev_close) / prev_close) * 100 if prev_close else 0.0
+                    
                     quotes[commodity] = NormalizedLiveQuote(
                         commodity=commodity,
                         price_usd_per_troy_oz=float(price),
+                        daily_change=daily_change,
+                        daily_change_pct=daily_change_pct,
                         observed_at=now,
                         provenance=MarketDataProvenanceRecord(
                             source_type="live",

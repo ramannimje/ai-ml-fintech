@@ -152,7 +152,12 @@ export function SettingsPage() {
         transition={{ duration: 0.2 }}
         className="panel p-5"
       >
-        <h2 className="text-2xl font-semibold">User Preferences</h2>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-semibold">Regional Settings</h2>
+            <p className="mt-1 text-sm text-muted">Select your preferred region. This affects all prices, forecasts, and market data across the app.</p>
+          </div>
+        </div>
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
           <label className="text-sm text-muted">
             Default Region
@@ -161,6 +166,9 @@ export function SettingsPage() {
               <option value="india">India</option>
               <option value="europe">Europe</option>
             </select>
+            <p className="mt-1 text-xs text-muted">
+              💡 Prices will be shown in {defaultRegion === 'us' ? 'USD' : defaultRegion === 'india' ? 'INR' : 'EUR'}
+            </p>
           </label>
           <label className="text-sm text-muted">
             Default Commodity
@@ -184,7 +192,7 @@ export function SettingsPage() {
         </div>
         {!!prefError && <p className="mt-3 text-sm" style={{ color: 'var(--danger)' }}>{prefError}</p>}
         <button type="button" onClick={saveUserPreferences} disabled={updateMutation.isPending} className="btn-primary mt-4 w-full sm:w-auto">
-          {updateMutation.isPending ? 'Saving...' : 'Save Settings'}
+          {updateMutation.isPending ? 'Saving...' : 'Save Regional Settings'}
         </button>
       </motion.section>
 
