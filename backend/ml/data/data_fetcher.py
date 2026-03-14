@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import logging
 import os
 from pathlib import Path
@@ -10,6 +10,31 @@ import pandas as pd
 import yfinance as yf
 
 logger = logging.getLogger(__name__)
+
+
+def _get_last_trading_day(dt: datetime) -> datetime:
+    """
+    Get the last trading day for a given datetime.
+    If the date falls on a weekend (Saturday/Sunday), return the previous Friday.
+    """
+    # If it's Saturday (5) or Sunday (6), go back to Friday
+    if dt.weekday() == 5:  # Saturday
+        return dt - timedelta(days=1)
+    elif dt.weekday() == 6:  # Sunday
+        return dt - timedelta(days=2)
+    return dt
+
+
+def _ensure_trading_date(start_date: date) -> date:
+    """
+    Ensure a date is a valid trading day.
+    If the date falls on a weekend, return the previous Friday.
+    """
+    if start_date.weekday() == 5:  # Saturday
+        return start_date - timedelta(days=1)
+    elif start_date.weekday() == 6:  # Sunday
+        return start_date - timedelta(days=2)
+    return start_date
 
 COMMODITY_SYMBOLS = {
     "gold": "GC=F",
@@ -222,13 +247,17 @@ class MarketDataFetcher:
         else:
             last_dt = cached["Date"].max().to_pydatetime().replace(tzinfo=timezone.utc)
             start_date = (last_dt + timedelta(days=1)).date()
-            if start_date > datetime.now(timezone.utc).date():
+            today_utc = datetime.now(timezone.utc).date()
+            if start_date > today_utc:
                 fresh = cached.copy()
             else:
+                # Adjust start_date to last trading day if it falls on weekend
+                # This prevents yfinance errors when requesting data for non-trading days
+                trading_start_date = _ensure_trading_date(start_date)
                 try:
                     fresh = yf.download(
                         symbol,
-                        start=start_date.isoformat(),
+                        start=trading_start_date.isoformat(),
                         auto_adjust=False,
                         progress=False,
                         threads=False,
@@ -272,9 +301,11 @@ class MarketDataFetcher:
                     if start_date > today_utc:
                         raw = cached.copy()
                     else:
+                        # Adjust start_date to last trading day if it falls on weekend
+                        trading_start_date = _ensure_trading_date(start_date)
                         raw = yf.download(
                             symbol,
-                            start=start_date.isoformat(),
+                            start=trading_start_date.isoformat(),
                             end=today_utc.isoformat(),
                             auto_adjust=False,
                             progress=False,
@@ -289,9 +320,14 @@ class MarketDataFetcher:
                         raw.columns = [str(col[0]) for col in raw.columns]
                     if "Date" not in raw.columns and "Datetime" in raw.columns:
                         raw = raw.rename(columns={"Datetime": "Date"})
+                    raw["Date"] = pd.to_datetime(raw["Date"], errors="coerce")
+                    raw = raw.dropna(subset=["Date"])
+                    raw["Close"] = pd.to_numeric(raw["Close"], errors="coerce")
+                    raw = raw.dropna(subset=["Close"])
                     raw = raw[["Date", "Close"]].drop_duplicates("Date").sort_values("Date")
-                    raw.to_csv(path, index=False)
-                    frames[key] = raw.set_index("Date")["Close"].rename(key)
+                    if not raw.empty:
+                        raw.to_csv(path, index=False)
+                        frames[key] = raw.set_index("Date")["Close"].rename(key)
             except Exception:
                 pass  # Macro features are optional; skip on error
 

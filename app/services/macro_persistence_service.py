@@ -21,7 +21,13 @@ class MacroPersistenceService:
             return {"rows_seen": 0, "rows_inserted": 0}
 
         normalized = frame.copy()
-        normalized.index = pd.to_datetime(normalized.index)
+        normalized.index = pd.to_datetime(normalized.index, errors="coerce")
+        normalized = normalized.dropna(how="all")
+        normalized = normalized[~normalized.index.isna()]
+        
+        if normalized.empty:
+            return {"rows_seen": 0, "rows_inserted": 0}
+        
         desired: dict[tuple[str, object], float] = {}
         for observed_at, row in normalized.iterrows():
             observed_dt = self._normalize_observed_at(observed_at.to_pydatetime())
@@ -95,6 +101,11 @@ class MacroPersistenceService:
 
     @staticmethod
     def _normalize_observed_at(value) -> object:
+        """Normalize datetime to UTC-naive, handling NaT gracefully."""
+        from pandas import NaT
+        
+        if value is None or (hasattr(value, "tzinfo") and value is NaT):
+            raise ValueError("observed_at cannot be NaT or None")
         if getattr(value, "tzinfo", None) is None:
             return value
         return value.astimezone(timezone.utc).replace(tzinfo=None)
